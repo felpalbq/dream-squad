@@ -1,0 +1,32 @@
+# Configuração de ambiente e timeouts
+# Os valores de env sobrescrevem este arquivo.
+
+environment:
+  # anthropic | ollama
+  # Sobrescrito por DREAM_SQUAD_ENV
+  default: anthropic
+
+timeouts:
+  playwright_page_load: 30       # segundos
+  playwright_instagram_session: 2700   # 45 min em segundos
+  playwright_twitter_session: 1800     # 30 min
+  gemini_api: 60
+  ollama_api: 120
+  visual_analyzer_per_image: 90
+
+rate_limits:
+  instagram_profiles_per_hour: 15
+  instagram_posts_per_profile: 8
+  twitter_posts_per_session: 30
+  cooldown_after_instagram_min: 30     # minutos de cooldown após sessão completa
+  cooldown_after_twitter_min: 20
+
+cost_estimation:
+  # Estimativas aproximadas por execução completa (USD)
+  # Claude Sonnet — análise visual ~$0.003/imagem (1 imagem ≈ 200 tokens visuais)
+  tokens_per_screenshot_vision: 800
+  screenshots_per_client_avg: 20
+  gemini_flash_per_1k_tokens: 0.000075
+  # Alerta se custo estimado ultrapassar threshold
+  # Sobrescrito por COST_ALERT_THRESHOLD
+  default_alert_threshold: 0.50

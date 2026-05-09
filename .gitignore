@@ -1,0 +1,35 @@
+# Ambiente
+.env
+.env.local
+.env.*.local
+
+# Credenciais
+build/credenciais/
+
+# Dados de execução (screenshots, outputs por timestamp)
+clients/*/executions/
+research/*/executions/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Claude Code
+.claude/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,49 @@
+client_id: casadobicho
+name: "Casa di Bicho"
+niche: "veterinária"
+location: "Ilhéus, BA"
+active: true
+
+persona:
+  instagram_handle: "@casadobicho"
+  bio: "Clínica veterinária em Ilhéus, BA. Cuidando dos seus pets com amor."
+
+audience:
+  description: "Tutores de pets, principalmente mulheres, 25-45 anos, Ilhéus e Itabuna"
+  location: "Ilhéus e Itabuna, BA"
+  pain_points:
+    - "Medo de perder o pet"
+    - "Dúvidas sobre saúde e alimentação do animal"
+    - "Culpa por não dar atenção suficiente"
+    - "Gastos inesperados com veterinário"
+
+voice:
+  tone:
+    - "próximo"
+    - "educativo"
+    - "afetivo"
+  style: "linguagem acessível, sem jargão técnico, como se fosse um amigo veterinário"
+  avoid:
+    - "termos técnicos sem explicação"
+    - "tom clínico e frio"
+    - "pressão de venda direta"
+
+instagram_reference_profiles:
+  - url: "https://www.instagram.com/casadibicho/"
+    handle: "@casadibicho"
+    relevance: "perfil de referência do nicho veterinário com alto engajamento"
+  - url: "https://www.instagram.com/cobasi/"
+    handle: "@cobasi"
+    relevance: "pet shop nacional — tendências de produto e comportamento"
+  - url: "https://www.instagram.com/patamania_/"
+    handle: "@patamania_"
+    relevance: "conteúdo educativo sobre pets com alto engajamento"
+
+research:
+  posts_per_profile: 20
+  top_posts_to_capture: 8
+  twitter_scroll_posts: 30
+  gemini_context: >
+    Cliente é clínica veterinária em cidade do interior da Bahia.
+    Público é formado majoritariamente por mulheres que tratam seus pets como filhos.
+    Foco em conteúdo emocional e educativo, não técnico.
