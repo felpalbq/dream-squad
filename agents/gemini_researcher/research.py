@@ -7,16 +7,20 @@ Falha silenciosa: se a API falhar, o research continua sem esta fonte.
 
 import os
 import sys
+import json
 import argparse
 import yaml
 from datetime import datetime
 from pathlib import Path
 
-import google.generativeai as genai
+from google import genai
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from agents.utils.paths import load_profile
+from agents.utils.logging_config import get_logger
+from agents.utils.retry import with_retry
+from agents.utils.validators import PesquisaGemini, validate_yaml_output
 
+logger = get_logger(__name__)
 
 _PROMPT_TEMPLATE = """\
 Você é um pesquisador de tendências de conteúdo para redes sociais brasileiras.
@@ -41,7 +45,7 @@ FOQUE EM:
 
 CRITÉRIO EDITORIAL MAIS IMPORTANTE:
 Prefira temas que conectam o PÚBLICO-ALVO ao nicho de forma INDIRETA e criativa.
-Exemplo: para veterinária, "mães de pet — mulheres que tratam pets como filhos" (conexão indireta pelo público) vale mais do que "vacinação animal" (conexão direta técnica).
+Exemplo: para veterinária, "mães de pet — mulheres que tratam pets como filhos" vale mais do que "vacinação animal".
 
 Para cada tema, forneça:
 - Nome curto do tema
@@ -65,11 +69,11 @@ pesquisa_gemini:
       url_fonte: "https://..."
       data_hora: "YYYY-MM-DD"
       relevancia_nicho: 8
+      origem: "gemini"
 """
 
 
 def _seasonal_context(dt: datetime) -> str:
-    """Retorna contexto sazonal baseado na data."""
     m, d = dt.month, dt.day
     windows = [
         ((12, 10), (1, 10), "Natal e Ano Novo"),
@@ -86,16 +90,13 @@ def _seasonal_context(dt: datetime) -> str:
     ]
     current = (m, d)
     for (sm, sd), (em, ed), label in windows:
-        start = (sm, sd)
-        end = (em, ed)
-        # Comparação circular simples
+        start, end = (sm, sd), (em, ed)
         if start <= end:
             if start <= current <= end:
                 return label
         else:
             if current >= start or current <= end:
                 return label
-
     month_labels = {
         1: "início de ano", 2: "verão/carnaval", 3: "outono chegando",
         4: "outono/Páscoa", 5: "Dia das Mães", 6: "Dia dos Namorados",
@@ -119,38 +120,49 @@ def _strip_fences(text: str) -> str:
 def main():
     parser = argparse.ArgumentParser(description="Dream Squad — Gemini Researcher")
     parser.add_argument("--client-id", required=True)
-    parser.add_argument("--output", required=True, help="Path do .yaml de saída")
+    parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
         _write_error(args.output, args.client_id, "", "GEMINI_API_KEY não configurada")
-        sys.exit(0)  # falha não fatal
+        logger.warning("Gemini: GEMINI_API_KEY ausente. Fonte pulada.")
+        print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": 0}))
+        sys.exit(0)
 
-    client = load_profile(args.client_id)
+    client_profile = load_profile(args.client_id)
     now = datetime.now()
 
     prompt = _PROMPT_TEMPLATE.format(
         client_id=args.client_id,
-        niche=client.get("niche", ""),
-        audience=client.get("audience", {}).get("description", "público geral"),
-        location=client.get("location", "Brasil"),
+        niche=client_profile.get("niche", ""),
+        audience=client_profile.get("audience", {}).get("description", "público geral"),
+        location=client_profile.get("location", "Brasil"),
         date=now.strftime("%Y-%m-%d"),
         seasonal=_seasonal_context(now),
-        extra_context=client.get("research", {}).get("gemini_context", "nenhum"),
+        extra_context=client_profile.get("research", {}).get("gemini_context", "nenhum"),
     )
 
-    model_name = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name)
+    model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
+    client = genai.Client(api_key=api_key)
+
+    @with_retry(max_attempts=3, base_delay=2.0, label="Gemini API")
+    def _call_gemini() -> str:
+        response = client.models.generate_content(model=model_name, contents=prompt)
+        return response.text
 
     try:
-        response = model.generate_content(prompt)
-        raw = _strip_fences(response.text)
+        raw_text = _call_gemini()
+        raw = _strip_fences(raw_text)
         data = yaml.safe_load(raw)
 
         if not isinstance(data, dict) or "pesquisa_gemini" not in data:
             raise ValueError("Resposta Gemini não contém 'pesquisa_gemini'")
+
+        for r in data["pesquisa_gemini"].get("resultados", []):
+            r.setdefault("origem", "gemini")
+
+        validate_yaml_output(data["pesquisa_gemini"], PesquisaGemini, "gemini")
 
         output_path = Path(args.output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -158,14 +170,16 @@ def main():
             yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
 
         n = len(data["pesquisa_gemini"].get("resultados", []))
-        print(f"[gemini] {n} resultados salvos em: {output_path}")
+        logger.info("Gemini: %d resultados → %s", n, output_path)
+        print("METRICS_JSON: " + json.dumps({"resultados_count": n, "retries": 0}))
 
     except Exception as e:
-        _write_error(args.output, args.client_id, client.get("niche", ""), str(e))
-        print(f"[AVISO] Gemini falhou ({e}). Research continua sem esta fonte.", file=sys.stderr)
+        _write_error(args.output, args.client_id, client_profile.get("niche", ""), str(e))
+        logger.error("Gemini falhou: %s. Research continua sem esta fonte.", e)
+        print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": 0}))
 
 
-def _write_error(output: str, client_id: str, niche: str, erro: str):
+def _write_error(output: str, client_id: str, niche: str, erro: str) -> None:
     data = {
         "pesquisa_gemini": {
             "client_id": client_id,

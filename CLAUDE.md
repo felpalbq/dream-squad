@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Este arquivo fornece ao Claude Code o contexto completo do projeto Dream Squad.
 
 ---
 
@@ -8,18 +8,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Sistema multi-agentes rodando dentro do Claude Code CLI. Automatiza a produção de conteúdo estratégico (carrosséis, roteiros de reels/stories/b-rolls) para pequenas empresas de Ilhéus/Itabuna (BA) sem verba para tráfego pago. O operador é o estrategista/gestor; os clientes recebem o conteúdo via board Trello atualizado 2×/semana.
 
-**Stack:** Python · Playwright (Chrome do operador) · Gemini API (pesquisa nacional) · Ollama Python SDK (visão multimodal + web search regional + embeddings) · Trello (publicação) · Claude Code CLI (todos os agentes LLM)
+**Stack:** Python · Gemini API (pesquisa nacional) · Tavily (web search geral) · Ollama Python SDK (web search regional — apenas ambiente Ollama) · Apify (posts públicos de perfis de referência) · Input manual do operador · Trello (publicação) · Claude Code CLI (todos os agentes LLM)
 
 ---
 
 ## Instalação
 
 ```bash
-python -m pip install -r requirements.txt
-playwright install chromium
+pip install -e .
 ```
 
 Copie `.env.example` para `.env` e preencha todas as variáveis.
+
+> `pip install -e .` instala o pacote em modo desenvolvimento e elimina a necessidade de `sys.path.insert` nos scripts.
+
+---
 
 ## Como Executar o Research
 
@@ -31,40 +34,17 @@ O operador invoca o sistema em linguagem natural. O Claude Code (orquestrador) s
 python agents/orchestrator/run.py --client-id casadobicho
 ```
 
-Cria diretório de execução com timestamp, roda Playwright Collector (Instagram + Twitter), Gemini Researcher e — no ambiente Ollama — o Ollama Regional Researcher. Imprime ao final as instruções exatas para o Claude Code continuar.
+Cria diretório de execução com timestamp, roda Gemini, Tavily, Ollama Regional (se ambiente Ollama), Apify e Manual Input serialmente. Imprime ao final as instruções exatas para o Claude Code continuar.
 
-Flags opcionais: `--source instagram|twitter|all` · `--skip-gemini` · `--skip-ollama-research` · `--skip-collect --exec-dir <path>`
+Flags opcionais: `--skip-gemini` · `--skip-tavily` · `--skip-ollama-research` · `--skip-apify` · `--exec-dir <path>`
 
-### Passo 2 — Análise Visual
+### Passo 2 — Scoring e Merge
 
-**Ambiente Anthropic:** o Claude Code lê `agents/visual_analyzer/instructions.md`, analisa os screenshots como sub-agente multimodal, e grava `visual_analysis.yaml` no diretório de execução.
+O Claude Code lê `agents/scoring_merge/instructions.md` e consolida todos os YAMLs disponíveis em `final_research.md`.
 
-**Ambiente Ollama:**
-```bash
-python agents/visual_analyzer/analyze_ollama.py \
-  --client-id casadobicho \
-  --collection-yaml clients/casadobicho/executions/{ts}/collection.yaml \
-  --output clients/casadobicho/executions/{ts}/research/visual_analysis.yaml
-```
+**Ambiente Anthropic:** sub-agente nativo (Task tool) com Claude Sonnet.
 
-### Passo 3 — Pré-processamento (apenas ambiente Ollama)
-
-Deduplicação semântica via embeddings antes do merge LLM:
-```bash
-python agents/scoring_merge/preprocess.py \
-  --visual clients/casadobicho/executions/{ts}/research/visual_analysis.yaml \
-  --output clients/casadobicho/executions/{ts}/research/deduplicated_visual_analysis.yaml
-```
-
-### Passo 4 — Scoring e Merge
-
-O Claude Code lê `agents/scoring_merge/instructions.md` e consolida:
-- `deduplicated_visual_analysis.yaml` (Ollama) ou `visual_analysis.yaml` (Anthropic)
-- `gemini_research.yaml`
-- `ollama_research.yaml` (apenas ambiente Ollama, se existir)
-- `profile.yaml` do cliente
-
-Produz: `clients/{client_id}/executions/{ts}/research/final_research.md`
+**Ambiente Ollama:** `ollama.Client.chat()` com Kimi K2.6 (`OLLAMA_MODEL`).
 
 ---
 
@@ -72,18 +52,16 @@ Produz: `clients/{client_id}/executions/{ts}/research/final_research.md`
 
 | Variável | Obrigatória | Descrição |
 |---|---|---|
+| `DREAM_SQUAD_ENV` | **Sim** | `anthropic` ou `ollama`. Ausência = erro explícito (sem input manual). |
 | `GEMINI_API_KEY` | Sim | Google Gemini API — deep research nacional |
-| `CHROME_PROFILE_PATH` | Sim | Caminho absoluto ao perfil Chrome do operador |
-| `CHROME_EXECUTABLE_PATH` | Sim | Caminho ao executável do Google Chrome |
-| `DREAM_SQUAD_ENV` | Não | `anthropic` ou `ollama`. Se ausente, solicita confirmação manual |
+| `GEMINI_MODEL` | Não | Modelo Gemini. Default: `gemini-2.0-flash` |
+| `TAVILY_API_KEY` | Recomendado | Tavily web search. Ausência = fonte pulada silenciosamente |
+| `APIFY_API_TOKEN` | Recomendado | Coleta de posts públicos via Apify. Ausência = fonte pulada |
 | `OLLAMA_API_BASE` | Se Ollama | URL base do servidor Ollama (ex: `https://ollama.com`) |
 | `OLLAMA_API_KEY` | Se Ollama | API key do servidor Ollama cloud |
-| `OLLAMA_MODEL` | Não | Modelo para visão/análise. Default: `kimi-k2.6:cloud` |
+| `OLLAMA_MODEL` | Não | Modelo para Scoring/Merge no ambiente Ollama. Default: `kimi-k2.6:cloud` |
 | `OLLAMA_RESEARCHER_MODEL` | Não | Modelo para pesquisa regional. Default: `kimi-k2.6:cloud` |
-| `OLLAMA_EMBEDDING_MODEL` | Não | Modelo para embeddings/dedup. Default: `qwen3-embedding` |
-| `COST_ALERT_THRESHOLD` | Não | Custo estimado máximo (USD) por execução. Default: 0.50 |
-
-O Chrome **deve estar fechado** antes de qualquer execução.
+| `AGENT_TIMEOUT_S` | Não | Timeout por subprocess em segundos. Default: 120 |
 
 ---
 
@@ -102,90 +80,78 @@ O Chrome **deve estar fechado** antes de qualquer execução.
 
 ## Arquitetura de Agentes (Etapa 1 — Research)
 
-Todos os agentes LLM são sub-agentes nativos do Claude Code (Task tool). Nunca processos externos. As exceções são: Gemini API (pesquisa via Python direto), Ollama Python SDK (visão + web search + embeddings via Python direto).
+Todos os agentes LLM são sub-agentes nativos do Claude Code (Task tool). As exceções são: Gemini API, Tavily API, Ollama Python SDK e Apify Client — usados como ferramentas de pesquisa Python direto.
 
 ### Fluxo do Research
 
 ```
 [Solicitação do operador]
         ↓
-[Orquestrador] — identifica cliente, modo, servidor ativo
+[Orquestrador] — identifica cliente, ambiente, roda health check
         ↓
-[Playwright Collector] — Instagram e Twitter/X serialmente
+[Gemini Researcher] — tendências nacionais (API Python)
         ↓
-[Gemini Researcher] — deep research nacional por nicho (API Python)
+[Tavily Researcher] — web search geral (API Python)
         ↓
 [Ollama Regional Researcher] — notícias locais via web_search (apenas ambiente Ollama)
         ↓
-[Visual Analyzer] — análise multimodal de todos os screenshots (batch)
+[Apify Collector] — posts públicos de perfis de referência (API Python)
         ↓
-[Preprocess] — deduplicação semântica via embeddings (apenas ambiente Ollama)
+[Manual Input Loader] — contexto manual do operador (leitura de arquivo)
         ↓
-[Scoring/Merge] — enriquecimento cruzado, rankeamento, seleção editorial
+[Scoring/Merge] — dedup LLM, enriquecimento cruzado, rankeamento, seleção editorial
         ↓
 [Output: final_research.md → etapa de Estratégia]
 ```
 
 **Regras absolutas:**
-- Playwright Instagram e Twitter são executados serialmente, nunca simultaneamente
-- A falha de uma fonte não interrompe as demais
-- A análise visual aguarda conclusão de todas as fontes Playwright (batch)
+- Todas as fontes Python são executadas serialmente
+- A falha de uma fonte não interrompe as demais (falha silenciosa)
 - Toda comunicação entre agentes é em YAML/JSON/MD estruturado
 
 ### Responsabilidades por Agente
 
 **Orquestrador**
 - Carrega `profile.yaml` do cliente
-- Detecta servidor via `DREAM_SQUAD_ENV`
-- Aciona sub-agentes na ordem correta
-- Captura falhas sem propagar para os demais
-- Exibe log de execução ao final (tempo por etapa, fontes coletadas, custo estimado)
-- Emite alerta se custo estimado ultrapassar `COST_ALERT_THRESHOLD`
+- Detecta ambiente via `DREAM_SQUAD_ENV` (obrigatória — ausência = `sys.exit(1)`)
+- Roda health check antes de qualquer subprocess
+- Aciona sub-agentes na ordem correta com timeout explícito (`AGENT_TIMEOUT_S`)
+- Registra `session.yaml` com métricas por etapa (status, elapsed_s, retries, timeout, resultados_count)
 
-**Playwright Collector**
-- Fontes: Instagram (perfis de referência do cliente) + Twitter/X (feed curado do operador)
-- Abre Chrome com perfil do operador via `launch_persistent_context`
-- Comportamento anti-detecção obrigatório: delays com distribuição normal, mouse em curva de Bézier, scroll gradual
-- Instagram: screenshot do grid → LLM seleciona posts → screenshot dos posts (máx 8 por perfil)
-- Twitter: scroll passivo com screenshots a cada ciclo, para ao atingir 30 posts ou 10 oportunidades
-- Rate limits: Instagram ≤ 15 perfis/hora, sessão ≤ 45 min; Twitter ≤ 30 min/sessão
-- Se bloqueio detectado (checkpoint/challenge/captcha/verify na URL): para sessão, registra log, notifica. Não contorna automaticamente
-
-**Gemini Researcher**
+**Gemini Researcher** (`agents/gemini_researcher/research.py`)
 - Chamada direta à API Python com `GEMINI_API_KEY`
-- Input: nicho + data atual + período sazonal
-- Foco: tendências nacionais/comportamentais, estudos, fontes verificáveis, conexões indiretas com o nicho
+- Input: nicho + data + período sazonal + contexto do cliente
+- Retry automático: 3 tentativas com backoff exponencial
 - Output: `gemini_research.yaml` com campo `pesquisa_gemini`
 
-**Ollama Regional Researcher** *(apenas ambiente Ollama)*
-- Substitui o Playwright Regional: busca notícias de Ilhéus/Itabuna via `ollama.web_search()`
-- Executa 3 queries direcionadas (notícias locais, nicho na região, comportamento do consumidor local)
-- Sintetiza resultados via `client.chat()` com o modelo configurado em `OLLAMA_RESEARCHER_MODEL`
+**Tavily Researcher** (`agents/tavily_researcher/research.py`)
+- Web search geral via `tavily-python`
+- Respeita `tavily_max_requests` do profile como teto de queries por execução
+- Strip de HTML nos resultados antes de gravar
+- Output: `tavily_research.yaml` com campo `pesquisa_tavily`
+
+**Ollama Regional Researcher** (`agents/ollama_researcher/research.py`) — *apenas ambiente Ollama*
+- Busca notícias de Ilhéus/Itabuna via `ollama.web_search()`
+- Executa 3 queries direcionadas, sintetiza via `client.chat()`
 - Output: `ollama_research.yaml` com campo `pesquisa_ollama_regional`
-- Falha silenciosa: research continua sem esta fonte se a API falhar
 
-**Visual Analyzer**
-- **Ambiente Anthropic:** Claude Sonnet nativo via sub-agente (Task tool)
-- **Ambiente Ollama:** Kimi K2.6 via `ollama.Client.chat()` com `think=True` — o raciocínio explícito é logado para auditoria editorial
-- Analisa screenshots de Instagram e Twitter em 4 camadas: Transformação · Fricção Central · Ângulo Narrativo · Evidências
-- Recebe obrigatoriamente: nicho, persona, público-alvo, data do cliente
-- Pautas com score médio < 6 em todos os critérios: descartar ou marcar como baixa prioridade
-- Não inventa métricas não visíveis — registrar 0 ou "não visível"
+**Apify Collector** (`agents/apify_collector/collect.py`)
+- Coleta posts públicos de `instagram_reference_profiles` do profile
+- `apify_budget_credits` do profile como `maxRequestsPerCrawl` (teto absoluto)
+- Actor: `apify/instagram-scraper` (público, plano gratuito)
+- Output: `apify_research.yaml` com campo `pesquisa_apify`
 
-**Preprocess** *(apenas ambiente Ollama, após Visual Analyzer)*
-- Deduplicação semântica das pautas via embeddings Ollama (`qwen3-embedding` por padrão)
-- Embeddings são L2-normalizados — similaridade = produto escalar, sem dependências externas
-- Pautas com similaridade ≥ 0.85 são mescladas: mantém a de maior score, acumula `fontes_confirmadoras`
-- Resultado: `deduplicated_visual_analysis.yaml` com `deduplicacao_aplicada: true`
-- Falha silenciosa: se embeddings falharem, usa `visual_analysis.yaml` original
+**Manual Input Loader** (`agents/manual_input/load.py`)
+- Lê `clients/{client_id}/manual_input.yaml` editado pelo operador antes da execução
+- Filtra entradas de template não preenchidas e entradas com `valido_ate` expirado
+- Output: `manual_research.yaml` com campo `manual_research`
 
 **Scoring/Merge** (sub-agente dedicado via Task tool)
-- Se receber `deduplicated_visual_analysis.yaml`: pula passo de deduplicação, foca em enriquecimento cruzado
-- Enriquecimento cruzado: pauta visual + fonte Gemini ou Ollama Regional correspondente = pauta mais forte
+- Deduplicação semântica via LLM entre as 5 fontes
+- Enriquecimento cruzado: pauta de uma fonte + evidência de outra = pauta mais forte
 - Bônus de confiança para pautas confirmadas por múltiplas fontes
-- Rankeamento por potencial total (média ponderada dos scores)
-- Balanceia eixos narrativos: carrossel de alcance (Cultura/Notícias, funil Topo) + carrossel de conversão (Cases/Produto, funil Fundo)
-- Output: `final_research.md` no formato documentado em `build/03_research_agent_behavior.md`
+- Rankeamento por potencial total, balanceamento Topo/Fundo de funil
+- Output: `final_research.md`
 
 ---
 
@@ -193,48 +159,49 @@ Todos os agentes LLM são sub-agentes nativos do Claude Code (Task tool). Nunca 
 
 ```
 dream-squad/
+├── pyproject.toml
 ├── CLAUDE.md
+├── .env.example
+├── .gitignore
+├── requirements.txt
 ├── clients/
 │   └── {client_id}/
 │       ├── profile.yaml
+│       ├── manual_input.yaml          # editado pelo operador antes de cada execução
 │       └── executions/
 │           └── {YYYY-MM-DD_HHMMSS}/
-│               ├── collection.yaml
 │               ├── session.yaml
-│               ├── instagram/
-│               │   ├── screenshots/
-│               │   └── parsed/
-│               ├── twitter/
-│               │   ├── screenshots/
-│               │   └── parsed/
 │               └── research/
 │                   ├── gemini_research.yaml
-│                   ├── ollama_research.yaml          # apenas ambiente Ollama
-│                   ├── visual_analysis.yaml
-│                   ├── deduplicated_visual_analysis.yaml  # apenas ambiente Ollama
+│                   ├── tavily_research.yaml
+│                   ├── ollama_research.yaml      # apenas ambiente Ollama
+│                   ├── apify_research.yaml
+│                   ├── manual_research.yaml
 │                   └── final_research.md
 ├── agents/
 │   ├── orchestrator/
 │   │   └── run.py
-│   ├── playwright_collector/
-│   │   └── collect.py
 │   ├── gemini_researcher/
+│   │   └── research.py
+│   ├── tavily_researcher/
 │   │   └── research.py
 │   ├── ollama_researcher/
 │   │   └── research.py
-│   ├── visual_analyzer/
-│   │   ├── analyze_ollama.py
-│   │   └── instructions.md
+│   ├── apify_collector/
+│   │   └── collect.py
+│   ├── manual_input/
+│   │   └── load.py
 │   ├── scoring_merge/
 │   │   ├── score.py
-│   │   ├── preprocess.py
 │   │   └── instructions.md
 │   └── utils/
-│       └── paths.py
+│       ├── paths.py
+│       ├── logging_config.py
+│       ├── retry.py
+│       └── validators.py
 ├── config/
 │   └── server_config.yaml
 └── docs/
-    ├── playwright_reference.md
     └── content_strategy.md
 ```
 
@@ -270,9 +237,11 @@ instagram_reference_profiles:
     relevance: "veterinária com alto engajamento"
 
 research:
-  posts_per_profile: 20
-  top_posts_to_capture: 8
-  twitter_scroll_posts: 30
+  apify_budget_credits: 30           # créditos máximos por execução Apify
+  apify_max_posts_per_profile: 5     # posts por perfil de referência
+  tavily_max_requests: 3             # queries máximas por execução Tavily
+  gemini_context: >
+    Contexto adicional para o pesquisador Gemini.
 ```
 
 ---
@@ -281,14 +250,16 @@ research:
 
 | De → Para | Formato | Conteúdo |
 |---|---|---|
-| Orquestrador → Playwright | Args CLI | client_id, source, exec_dir |
-| Playwright → Visual Analyzer | YAML (`collection.yaml`) | caminhos de screenshots + metadata |
 | Orquestrador → Gemini | Args CLI | client_id, output path |
+| Orquestrador → Tavily | Args CLI | client_id, output path |
 | Orquestrador → Ollama Researcher | Args CLI | client_id, output path |
-| Gemini → Scoring/Merge | YAML (`gemini_research.yaml`) | `pesquisa_gemini` com resultados |
-| Ollama Researcher → Scoring/Merge | YAML (`ollama_research.yaml`) | `pesquisa_ollama_regional` com resultados |
-| Visual Analyzer → Preprocess | YAML (`visual_analysis.yaml`) | `analise_visual` com `pautas_identificadas` |
-| Preprocess → Scoring/Merge | YAML (`deduplicated_visual_analysis.yaml`) | pautas deduplicadas |
+| Orquestrador → Apify | Args CLI | client_id, output path |
+| Orquestrador → Manual Input | Args CLI | client_id, output path |
+| Gemini → Scoring/Merge | YAML (`gemini_research.yaml`) | `pesquisa_gemini` |
+| Tavily → Scoring/Merge | YAML (`tavily_research.yaml`) | `pesquisa_tavily` |
+| Ollama Researcher → Scoring/Merge | YAML (`ollama_research.yaml`) | `pesquisa_ollama_regional` |
+| Apify → Scoring/Merge | YAML (`apify_research.yaml`) | `pesquisa_apify` |
+| Manual Input → Scoring/Merge | YAML (`manual_research.yaml`) | `manual_research` |
 | Scoring/Merge → Estratégia | MD estruturado | `final_research.md` |
 
 ---
@@ -302,13 +273,7 @@ research:
 | `potencial_engajamento` | 0–10 | Probabilidade de likes/comentários/shares/saves |
 | `rate_timing` | 0–10 | Oportunidade agora (sazonal, trending, recente) |
 
-Campos editoriais adicionais obrigatórios: `transformacao` · `friccao_central` · `evidencias_disponiveis` · `evidencias_a_pesquisar` · `eixo_narrativo` (Mercado/Cases/Notícias/Cultura/Produto) · `etapa_funil` (Topo/Meio/Fundo) · `gatilhos_emocionais` · `padrao_hook_potencial` (quando aplicável).
-
-Fórmula de scoring de engajamento (determinística, em `score.py`):
-```python
-velocity = (likes + comments*3 + shares*5 + views*0.1) / hours_elapsed
-# Twitter: inclui shares e views. Instagram: apenas likes + comments*3.
-```
+Campos editoriais adicionais no `final_research.md`: `transformacao` · `friccao_central` · `evidencias_disponiveis` · `evidencias_a_pesquisar` · `eixo_narrativo` (Mercado/Cases/Notícias/Cultura/Produto) · `etapa_funil` (Topo/Meio/Fundo) · `gatilhos_emocionais` · `padrao_hook_potencial` · `fontes_confirmadoras`.
 
 ---
 
@@ -316,28 +281,13 @@ velocity = (likes + comments*3 + shares*5 + views*0.1) / hours_elapsed
 
 | Falha | Comportamento |
 |---|---|
-| Perfil Instagram não carrega | Registrar, pular, continuar |
-| Twitter bloqueado | Registrar, continuar |
-| Gemini API error/rate limit | Registrar, continuar sem esta fonte |
-| Ollama Regional API falha | Registrar, continuar sem esta fonte |
-| Embedding dedup falha | Registrar, usar visual_analysis.yaml original |
-| API Ollama indisponível (Visual Analyzer) | Registrar falha, research continua sem análise visual |
-| Timeout de sub-agente | Registrar, marcar fonte como falha, orquestrador continua |
+| Gemini API error/rate limit | Registrar em session.yaml, continuar sem esta fonte |
+| Tavily API error/rate limit | Registrar em session.yaml, continuar sem esta fonte |
+| Ollama Regional API falha | Registrar em session.yaml, continuar sem esta fonte |
+| Apify erro de rede | Registrar, retry 2x com backoff, depois falha silenciosa |
+| Apify erro de permissão/plano | Registrar como falha de configuração, sem retry |
+| Manual input ausente ou vazio | Registrar, continuar sem esta fonte |
+| Timeout de subprocess | Registrar `"timeout": true` em session.yaml, continuar |
+| DREAM_SQUAD_ENV ausente | `sys.exit(1)` com mensagem de erro explícita |
 
 **Nunca:** travar a execução por falha de uma fonte.
-
----
-
-## Documentos de Referência
-
-| Arquivo | Conteúdo |
-|---|---|
-| `build/01_project_overview.md` | Visão geral, contexto de negócio, stack |
-| `build/02_research_architecture.md` | Arquitetura do research, fontes, fluxo, schemas YAML |
-| `build/03_research_agent_behavior.md` | Comportamento detalhado de cada agente, outputs, falhas |
-| `build/04_complementary_context.md` | Gaps arquiteturais, contexto complementar, decisões |
-| `build/05_research_editorial_intelligence.md` | Critérios editoriais, padrões de hook, lógica de conexão indireta |
-| `build/06_etapa-coleta-playwright.md` | Implementação Playwright, scoring, anti-detecção, rate limits |
-| `build/ollama_capabilities.md` | Capacidades do servidor Ollama (visão, thinking, web search, embeddings) |
-
-O agente Visual Analyzer e o Scoring/Merge devem incorporar os critérios editoriais de `build/05_research_editorial_intelligence.md` como parte central do raciocínio.

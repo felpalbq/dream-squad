@@ -40,9 +40,14 @@ instagram_reference_profiles:
     relevance: "conteúdo educativo sobre pets com alto engajamento"
 
 research:
-  posts_per_profile: 20
-  top_posts_to_capture: 8
-  twitter_scroll_posts: 30
+  # Apify — controle de budget
+  apify_budget_credits: 30          # créditos máximos por execução (teto absoluto)
+  apify_max_posts_per_profile: 5    # posts coletados por perfil de referência
+
+  # Tavily — controle de requests
+  tavily_max_requests: 3            # queries máximas por execução
+
+  # Gemini — contexto adicional
   gemini_context: >
     Cliente é clínica veterinária em cidade do interior da Bahia.
     Público é formado majoritariamente por mulheres que tratam seus pets como filhos.

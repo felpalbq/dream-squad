@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
 """
 Dream Squad — Ollama Researcher (Regional)
-Pesquisa regional via Ollama web_search. Substitui o Playwright Regional.
-Foco em notícias e tendências de Ilhéus/Itabuna, BA relevantes para o nicho do cliente.
-Falha silenciosa: se a API falhar, o research continua sem esta fonte.
+Pesquisa regional via Ollama web_search. Foco em Ilhéus/Itabuna, BA.
+Disponível apenas no ambiente Ollama. Falha silenciosa.
 """
 
 import os
 import sys
+import json
 import yaml
 import argparse
 from datetime import datetime
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from agents.utils.paths import load_profile
+from agents.utils.logging_config import get_logger
+from agents.utils.retry import with_retry
+from agents.utils.validators import PesquisaOllama, validate_yaml_output
 
+logger = get_logger(__name__)
 
 _SYNTHESIS_PROMPT = """\
 Você é o Agente de Pesquisa Regional do sistema Dream Squad.
@@ -52,6 +55,7 @@ pesquisa_ollama_regional:
       url_fonte: "https://..."
       data_hora: "YYYY-MM-DD"
       relevancia_nicho: 8
+      origem: "ollama"
 """
 
 
@@ -119,7 +123,7 @@ def _write_error(output: str, client_id: str, niche: str, erro: str) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Dream Squad — Ollama Researcher (Regional)")
     parser.add_argument("--client-id", required=True)
-    parser.add_argument("--output", required=True, help="Path do .yaml de saída")
+    parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
     api_base = os.environ.get("OLLAMA_API_BASE", "http://localhost:11434")
@@ -128,17 +132,18 @@ def main():
 
     if not api_key:
         _write_error(args.output, args.client_id, "", "OLLAMA_API_KEY não configurada")
-        print("[AVISO] Ollama Regional falhou (OLLAMA_API_KEY ausente). Research continua sem esta fonte.", file=sys.stderr)
+        logger.warning("Ollama Regional: OLLAMA_API_KEY ausente. Fonte pulada.")
+        print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": 0}))
         sys.exit(0)
 
     try:
         from ollama import Client, web_search
     except ImportError as e:
         _write_error(args.output, args.client_id, "", f"ollama library não disponível: {e}")
-        print(f"[AVISO] Ollama Regional falhou ({e}). Research continua.", file=sys.stderr)
+        logger.warning("Ollama Regional: biblioteca não disponível. Fonte pulada.")
+        print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": 0}))
         sys.exit(0)
 
-    # Configura a lib ollama para usar o servidor correto
     os.environ["OLLAMA_HOST"] = api_base
     os.environ["OLLAMA_API_KEY"] = api_key
 
@@ -152,19 +157,19 @@ def main():
     seasonal = _seasonal_context(now)
 
     queries = _build_queries(niche, location, date_str)
-
     search_results = []
     for query in queries:
         try:
             result = web_search(query, max_results=5)
             search_results.append(f"Query: {query}\n{result}")
-            print(f"  [OK] web_search: {query}", file=sys.stderr)
+            logger.info("web_search OK: %s", query)
         except Exception as e:
-            print(f"  [AVISO] web_search falhou para '{query}': {e}", file=sys.stderr)
+            logger.warning("web_search falhou para '%s': %s", query, e)
 
     if not search_results:
         _write_error(args.output, args.client_id, niche, "Todas as buscas falharam")
-        print("[AVISO] Ollama Regional — todas as buscas falharam. Research continua.", file=sys.stderr)
+        logger.warning("Ollama Regional: todas as buscas falharam. Research continua.")
+        print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": 0}))
         sys.exit(0)
 
     synthesis_prompt = _SYNTHESIS_PROMPT.format(
@@ -182,17 +187,26 @@ def main():
         headers={"Authorization": f"Bearer {api_key}"},
     )
 
-    try:
-        response = ollama_client.chat(
+    @with_retry(max_attempts=3, base_delay=2.0, label="Ollama chat")
+    def _call_ollama():
+        return ollama_client.chat(
             model=model,
             messages=[{"role": "user", "content": synthesis_prompt}],
             options={"temperature": 0.2},
         )
+
+    try:
+        response = _call_ollama()
         raw = _strip_fences(response.message.content)
         data = yaml.safe_load(raw)
 
         if not isinstance(data, dict) or "pesquisa_ollama_regional" not in data:
             raise ValueError("Resposta não contém 'pesquisa_ollama_regional'")
+
+        for r in data["pesquisa_ollama_regional"].get("resultados", []):
+            r.setdefault("origem", "ollama")
+
+        validate_yaml_output(data["pesquisa_ollama_regional"], PesquisaOllama, "ollama")
 
         output_path = Path(args.output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -200,11 +214,13 @@ def main():
             yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
 
         n = len(data["pesquisa_ollama_regional"].get("resultados", []))
-        print(f"[ollama_researcher] {n} resultados regionais → {output_path}")
+        logger.info("Ollama Regional: %d resultados → %s", n, output_path)
+        print("METRICS_JSON: " + json.dumps({"resultados_count": n, "retries": 0}))
 
     except Exception as e:
         _write_error(args.output, args.client_id, niche, str(e))
-        print(f"[AVISO] Ollama Regional falhou ({e}). Research continua sem esta fonte.", file=sys.stderr)
+        logger.error("Ollama Regional falhou: %s. Research continua.", e)
+        print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": 0}))
 
 
 if __name__ == "__main__":

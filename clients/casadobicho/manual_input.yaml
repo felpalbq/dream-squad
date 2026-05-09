@@ -1,0 +1,23 @@
+# manual_input.yaml — Edite antes de executar quando houver eventos relevantes.
+# Deixe resultados: [] se não houver nada a adicionar nesta execução.
+#
+# O campo valido_ate (opcional) define até quando a entrada é válida.
+# Entradas com valido_ate anterior a hoje são ignoradas automaticamente.
+# Remova ou deixe comentado para sem expiração.
+
+resultados: []
+
+# Exemplo de entrada preenchida:
+#
+# resultados:
+#   - tema: "Feira de Adoção de Pets Ilhéus"
+#     titulo: "Feira de adoção no Parque Municipal — sábado 10/05"
+#     descricao: >
+#       Evento de adoção organizado pelo grupo SOS Pets Ilhéus no Parque Municipal.
+#       Alta visibilidade na comunidade, público-alvo idêntico ao da clínica.
+#       Oportunidade de conteúdo sobre adoção responsável e cuidados iniciais.
+#     url_fonte: ""
+#     data_hora: "2025-05-08"
+#     relevancia_nicho: 9
+#     origem: "manual"
+#     valido_ate: "2025-05-11"   # expira após o evento
