@@ -1,0 +1,23 @@
+# manual_input.yaml — Edite antes de executar quando houver eventos relevantes.
+# Deixe resultados: [] se não houver nada a adicionar nesta execução.
+#
+# O campo valido_ate (opcional) define até quando a entrada é válida.
+# Entradas com valido_ate anterior a hoje são ignoradas automaticamente.
+# Remova ou deixe comentado para sem expiração.
+
+resultados: []
+
+# Exemplo de entrada preenchida:
+#
+# resultados:
+#   - tema: "Mudança nas regras de financiamento imobiliário"
+#     titulo: "Caixa muda regras do financiamento imobiliário em outubro"
+#     descricao: >
+#       Alteração nas taxas e condições de financiamento pela Caixa Econômica Federal.
+#       Oportunidade de carrossel educativo explicando o impacto para quem quer
+#       comprar imóvel e como o consórcio pode ser uma alternativa.
+#     url_fonte: "https://www.caixa.gov.br/"
+#     data_hora: "2025-10-01"
+#     relevancia_nicho: 10
+#     origem: "manual"
+#     valido_ate: "2025-11-30"

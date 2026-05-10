@@ -1,12 +1,12 @@
 client_id: casadobicho
-name: "Casa di Bicho"
+name: "Casa do Bicho"
 niche: "veterinária"
 location: "Ilhéus, BA"
 active: true
 
 persona:
   instagram_handle: "@casadobicho"
-  bio: "Clínica veterinária em Ilhéus, BA. Cuidando dos seus pets com amor."
+  bio: "Clínica veterinária em Ilhéus, BA. Cuidando dos seus pets com amor e responsabilidade."
 
 audience:
   description: "Tutores de pets, principalmente mulheres, 25-45 anos, Ilhéus e Itabuna"
@@ -19,36 +19,42 @@ audience:
 
 voice:
   tone:
-    - "próximo"
+    - "institucional leve"
     - "educativo"
-    - "afetivo"
-  style: "linguagem acessível, sem jargão técnico, como se fosse um amigo veterinário"
+    - "emocional leve"
+  style: "linguagem acessível e afetuosa, como um veterinário amigo, sem jargão técnico"
   avoid:
     - "termos técnicos sem explicação"
     - "tom clínico e frio"
     - "pressão de venda direta"
+    - "qualquer menção a política-partidária, religião ou temas polêmicos"
+
+objectives:
+  - "autoridade"
+  - "reconhecimento"
+  - "visibilidade"
+  - "engajamento"
+
+operator_notes: >
+  Cliente evita ao máximo qualquer conteúdo polêmico: política-partidária, religião, debates sociais
+  divisivos. Manter tom sempre positivo, acolhedor e seguro. Priorizar conteúdo educativo sobre
+  saúde animal e emocional sobre o vínculo tutor-pet.
 
 instagram_reference_profiles:
-  - url: "https://www.instagram.com/casadibicho/"
-    handle: "@casadibicho"
-    relevance: "perfil de referência do nicho veterinário com alto engajamento"
-  - url: "https://www.instagram.com/cobasi/"
-    handle: "@cobasi"
-    relevance: "pet shop nacional — tendências de produto e comportamento"
-  - url: "https://www.instagram.com/patamania_/"
-    handle: "@patamania_"
-    relevance: "conteúdo educativo sobre pets com alto engajamento"
+  - url: "https://www.instagram.com/anacarolinalanavet/"
+    handle: "@anacarolinalanavet"
+    relevance: "veterinária com alto engajamento e posicionamento educativo"
+  - url: "https://www.instagram.com/alinecrunflivet/"
+    handle: "@alinecrunflivet"
+    relevance: "veterinária com comunicação próxima e emocional"
 
 research:
-  # Apify — controle de budget
-  apify_budget_credits: 30          # créditos máximos por execução (teto absoluto)
-  apify_max_posts_per_profile: 5    # posts coletados por perfil de referência
-
-  # Tavily — controle de requests
-  tavily_max_requests: 3            # queries máximas por execução
-
-  # Gemini — contexto adicional
+  apify_max_crawl_requests: 30    # limite de requisições HTTP por chamada ao actor (segurança)
+  apify_max_posts_per_profile: 5  # controla custo real: 5 posts × $0,001 = $0,005/perfil/run
+  tavily_max_requests: 3          # 1 crédito/query (basic) — saldo free: 1.000/mês
+  tavily_search_depth: "basic"
+  tavily_days: 30
   gemini_context: >
-    Cliente é clínica veterinária em cidade do interior da Bahia.
-    Público é formado majoritariamente por mulheres que tratam seus pets como filhos.
-    Foco em conteúdo emocional e educativo, não técnico.
+    Clínica veterinária em Ilhéus, BA. Público majoritariamente feminino que trata pets como filhos.
+    Foco em conteúdo emocional e educativo, nunca técnico. Evitar qualquer tema polêmico.
+    Ganchos: datas do calendário pet (Dia do Animal, Agosto Adote), vacinação, prevenção de doenças sazonais.

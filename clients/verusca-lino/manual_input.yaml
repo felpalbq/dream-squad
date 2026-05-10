@@ -1,0 +1,23 @@
+# manual_input.yaml — Edite antes de executar quando houver eventos relevantes.
+# Deixe resultados: [] se não houver nada a adicionar nesta execução.
+#
+# O campo valido_ate (opcional) define até quando a entrada é válida.
+# Entradas com valido_ate anterior a hoje são ignoradas automaticamente.
+# Remova ou deixe comentado para sem expiração.
+
+resultados: []
+
+# Exemplo de entrada preenchida:
+#
+# resultados:
+#   - tema: "Campanha Maio Laranja"
+#     titulo: "Maio Laranja: mês de combate ao abuso e exploração sexual infantil"
+#     descricao: >
+#       Campanha nacional com forte apelo institucional e emocional. Oportunidade de conteúdo
+#       educativo e de conscientização alinhado ao posicionamento da Dra. Verusca como pediatra
+#       comprometida com a saúde integral da criança.
+#     url_fonte: "https://www.gov.br/pt-br/noticias/saude-e-vigilancia-sanitaria/maio-laranja"
+#     data_hora: "2025-05-01"
+#     relevancia_nicho: 10
+#     origem: "manual"
+#     valido_ate: "2025-05-31"

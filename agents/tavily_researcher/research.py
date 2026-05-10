@@ -38,8 +38,17 @@ def _strip_html(text: str) -> str:
 
 
 @with_retry(max_attempts=3, base_delay=2.0, label="Tavily search")
-def _tavily_search(client, query: str, max_results: int = 5) -> list[dict]:
-    response = client.search(query=query, max_results=max_results)
+def _tavily_search(
+    client,
+    query: str,
+    max_results: int = 5,
+    search_depth: str = "basic",
+    days: int | None = None,
+) -> list[dict]:
+    kwargs = {"query": query, "max_results": max_results, "search_depth": search_depth}
+    if days is not None:
+        kwargs["days"] = days
+    response = client.search(**kwargs)
     return response.get("results", [])
 
 
@@ -68,16 +77,18 @@ def main():
     niche = client_profile.get("niche", "")
     audience = client_profile.get("audience", {}).get("description", "público geral")
     location = client_profile.get("location", "Brasil")
-    max_requests = client_profile.get("research", {}).get("tavily_max_requests", 3)
+    research_cfg = client_profile.get("research", {})
+    max_requests = research_cfg.get("tavily_max_requests", 3)
+    search_depth = research_cfg.get("tavily_search_depth", "basic")
+    days = research_cfg.get("tavily_days", 30)
 
     tavily = TavilyClient(api_key=api_key)
     queries = _build_queries(niche, audience, location)[:max_requests]
 
-    # Armazenar raw dicts preservando URLs reais (correção vs. refactor doc original)
     raw_results: list[dict] = []
     for query in queries:
         try:
-            results = _tavily_search(tavily, query)
+            results = _tavily_search(tavily, query, search_depth=search_depth, days=days)
             for r in results:
                 raw_results.append({
                     "tema": _strip_html(r.get("title", ""))[:80],

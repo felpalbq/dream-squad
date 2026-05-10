@@ -1,0 +1,63 @@
+client_id: opcao-seguros
+name: "Opção Seguros"
+niche: "seguros, financiamentos e consórcio"
+location: "Itabuna, BA"
+active: true
+
+persona:
+  instagram_handle: "@opcaoseguros"
+  bio: "Seguros, financiamentos e consórcio em Itabuna, BA. Proteção e planejamento para sua vida."
+
+audience:
+  description: "Adultos 25–55 anos com carro, imóvel, plano de saúde ou consórcio, classes B/C, Itabuna e região"
+  location: "Itabuna e Ilhéus, BA"
+  pain_points:
+    - "Desconhecimento sobre direitos, coberturas e obrigações em seguros"
+    - "Confusão entre consórcio, financiamento e leasing"
+    - "Medo de fazer escolha errada e perder dinheiro"
+    - "Dificuldade de comparar produtos e entender contratos"
+
+voice:
+  tone:
+    - "institucional leve"
+    - "educativo"
+    - "emocional leve"
+  style: "didático e acessível, traduzindo termos técnicos do setor financeiro em linguagem do dia a dia"
+  avoid:
+    - "jargão financeiro sem explicação"
+    - "tom alarmista sobre riscos"
+    - "conteúdo político-partidário ou religioso"
+
+objectives:
+  - "autoridade"
+  - "reconhecimento"
+  - "alcance"
+  - "visibilidade"
+  - "conversão"
+
+operator_notes: >
+  O público é carente de informações básicas sobre legislação e técnica de financiamentos,
+  seguros de saúde, auto, vida e consórcios. Isso é uma oportunidade forte para carrosséis
+  educativos com valor imediato (ex: "O que o seu seguro cobre e você não sabia",
+  "Consórcio x Financiamento: qual vale mais?"). Priorizar conteúdo que desmistifica e educa.
+
+instagram_reference_profiles:
+  - url: "https://www.instagram.com/gabrielfogaca_/"
+    handle: "@gabrielfogaca_"
+    relevance: "corretor de seguros com boa presença digital e conteúdo educativo"
+  - url: "https://www.instagram.com/danibarbizan/"
+    handle: "@danibarbizan"
+    relevance: "finanças e seguros — conteúdo educativo com alto engajamento"
+
+research:
+  apify_max_crawl_requests: 30    # limite de requisições HTTP por chamada ao actor (segurança)
+  apify_max_posts_per_profile: 5  # controla custo real: 2 perfis × 5 posts × $0,001 = $0,010/run
+  tavily_max_requests: 3          # 2 créditos/query (advanced) — legislação financeira exige fontes profundas
+  tavily_search_depth: "advanced"
+  tavily_days: 60
+  gemini_context: >
+    Corretora de seguros, financiamentos e consórcio em Itabuna, BA.
+    Público são adultos das classes B/C com baixo conhecimento financeiro.
+    Priorizar conteúdo educativo que traduz direitos e opções em linguagem simples.
+    Ganchos: DPVAT, renovação de seguro auto, aumento de sinistros, mudanças na legislação SUSEP,
+    comparativos consórcio x financiamento, planejamento financeiro de fim de ano.

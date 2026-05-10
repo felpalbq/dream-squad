@@ -1,0 +1,23 @@
+# manual_input.yaml — Edite antes de executar quando houver eventos relevantes.
+# Deixe resultados: [] se não houver nada a adicionar nesta execução.
+#
+# O campo valido_ate (opcional) define até quando a entrada é válida.
+# Entradas com valido_ate anterior a hoje são ignoradas automaticamente.
+# Remova ou deixe comentado para sem expiração.
+
+resultados: []
+
+# Exemplo de entrada preenchida:
+#
+# resultados:
+#   - tema: "Torneio de Pesca Esportiva"
+#     titulo: "Torneio de pesca esportiva no Ilhéus Iate Clube — julho 2025"
+#     descricao: >
+#       Evento interno com participação de sócios e convidados. Oportunidade de conteúdo
+#       mostrando a estrutura do clube, o ambiente e o estilo de vida dos sócios.
+#       Alto potencial de alcance orgânico com tags e marcações.
+#     url_fonte: ""
+#     data_hora: "2025-07-20"
+#     relevancia_nicho: 10
+#     origem: "manual"
+#     valido_ate: "2025-07-22"

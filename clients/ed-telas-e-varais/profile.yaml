@@ -1,0 +1,68 @@
+client_id: ed-telas-e-varais
+name: "Ed Telas e Varais"
+niche: "serviços — instalação de telas e varais"
+location: "Ilhéus, BA"
+active: true
+
+persona:
+  instagram_handle: "@edtelasevarais"
+  bio: "Instalação de telas e varais em Ilhéus, BA. Proteção, praticidade e qualidade."
+
+audience:
+  description: "Proprietários de imóveis, famílias com crianças e pets, condomínios, Ilhéus e região"
+  location: "Ilhéus e Itabuna, BA"
+  pain_points:
+    - "Preocupação com segurança de crianças e pets em janelas e sacadas"
+    - "Incômodo com insetos e mosquitos"
+    - "Dificuldade de encontrar serviço confiável e com bom preço"
+    - "Desconhecimento das opções de tela e varal disponíveis"
+
+voice:
+  tone:
+    - "descontraído"
+    - "emocional leve"
+  style: "direto e simpático, próximo ao cotidiano do cliente, sem jargão técnico"
+  avoid:
+    - "linguagem muito técnica sobre materiais"
+    - "tom excessivamente comercial e intrusivo"
+    - "conteúdo político-partidário ou religioso"
+
+objectives:
+  - "alcance"
+  - "visibilidade"
+  - "conversão"
+  - "autoridade"
+
+content_strategy:
+  carousel_viable: false
+  focus_formats:
+    - "reels"
+    - "stories"
+  operator_note: >
+    O nicho de telas e varais torna carrosséis informativos praticamente inviáveis.
+    O sistema deve concentrar esforços em gerar enredos e roteiros detalhados para reels
+    e stories. Carrosséis de produto (antes/depois, tipos de tela) podem ser testados
+    pontualmente, mas não são o foco.
+
+instagram_reference_profiles:
+  - url: "https://www.instagram.com/planeta.obra/"
+    handle: "@planeta.obra"
+    relevance: "referência em serviços de construção e reforma com bom engajamento"
+  - url: "https://www.instagram.com/uvs.calhas/"
+    handle: "@uvs.calhas"
+    relevance: "serviços similares — instalação de calhas e proteções"
+  - url: "https://www.instagram.com/calhas_kenned/"
+    handle: "@calhas_kenned"
+    relevance: "serviços de calhas e proteção — referência regional"
+
+research:
+  apify_max_crawl_requests: 30    # limite de requisições HTTP por chamada ao actor (segurança)
+  apify_max_posts_per_profile: 5  # controla custo real: 3 perfis × 5 posts × $0,001 = $0,015/run
+  tavily_max_requests: 3          # 1 crédito/query (basic)
+  tavily_search_depth: "basic"
+  tavily_days: 30
+  gemini_context: >
+    Cliente presta serviços de instalação de telas de proteção e varais em Ilhéus, BA.
+    Público são proprietários de imóveis e famílias com crianças pequenas e pets.
+    Conteúdo deve focar em reels e stories — carrosséis são inviáveis para este nicho.
+    Ganchos: segurança infantil, praticidade no dia a dia, antes/depois de instalações.

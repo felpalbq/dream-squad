@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Dream Squad — Ollama Researcher (Regional)
-Pesquisa regional via Ollama web_search. Foco em Ilhéus/Itabuna, BA.
-Disponível apenas no ambiente Ollama. Falha silenciosa.
+Pesquisa regional via Ollama web_search + web_fetch em sites configurados.
+Foco em Ilhéus/Itabuna, BA. Falha silenciosa por fonte.
 """
 
 import os
@@ -20,6 +20,9 @@ from agents.utils.validators import PesquisaOllama, validate_yaml_output
 
 logger = get_logger(__name__)
 
+ROOT = Path(__file__).parent.parent.parent
+_WEB_FETCH_MAX_CHARS = 6000
+
 _SYNTHESIS_PROMPT = """\
 Você é o Agente de Pesquisa Regional do sistema Dream Squad.
 
@@ -31,7 +34,11 @@ CONTEXTO DO CLIENTE:
 - Data atual: {date}
 - Período sazonal: {seasonal}
 
-RESULTADOS DAS BUSCAS REALIZADAS:
+RESULTADOS COLETADOS:
+Os resultados abaixo vêm de duas fontes:
+1. Buscas web (web_search) — consultas direcionadas ao contexto do cliente
+2. Portais regionais (web_fetch) — conteúdo buscado diretamente nos sites configurados
+
 {search_results}
 
 TAREFA:
@@ -39,6 +46,7 @@ Com base nos resultados acima, identifique notícias, eventos e tendências REGI
 Ilhéus/Itabuna relevantes para este nicho e público-alvo.
 Aplique o critério de conexão indireta: o tema não precisa ser sobre o nicho diretamente \
 — precisa ter um ângulo que conecta com o nicho ou com o público-alvo.
+Priorize resultados concretos (notícias com data, evento específico) sobre resultados genéricos.
 Descarte resultados sem relação possível.
 
 Retorne SOMENTE o YAML abaixo, sem texto adicional, sem code fences:
@@ -80,6 +88,18 @@ def _seasonal_context(dt: datetime) -> str:
         10: "Dia das Crianças", 11: "Black Friday", 12: "Natal",
     }
     return month_labels.get(m, "período sem sazonalidade específica")
+
+
+def _load_search_sites() -> list[str]:
+    sites_file = ROOT / "build" / "web_search_sites.txt"
+    if not sites_file.exists():
+        logger.warning("web_search_sites.txt não encontrado em build/")
+        return []
+    return [
+        line.strip()
+        for line in sites_file.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
 
 
 def _build_queries(niche: str, location: str, date_str: str) -> list[str]:
@@ -137,7 +157,7 @@ def main():
         sys.exit(0)
 
     try:
-        from ollama import Client, web_search
+        from ollama import Client, web_search, web_fetch
     except ImportError as e:
         _write_error(args.output, args.client_id, "", f"ollama library não disponível: {e}")
         logger.warning("Ollama Regional: biblioteca não disponível. Fonte pulada.")
@@ -158,13 +178,24 @@ def main():
 
     queries = _build_queries(niche, location, date_str)
     search_results = []
+
     for query in queries:
         try:
             result = web_search(query, max_results=5)
-            search_results.append(f"Query: {query}\n{result}")
+            search_results.append(f"[web_search] Query: {query}\n{result}")
             logger.info("web_search OK: %s", query)
         except Exception as e:
             logger.warning("web_search falhou para '%s': %s", query, e)
+
+    sites = _load_search_sites()
+    for site_url in sites:
+        try:
+            content = web_fetch(site_url)
+            truncated = str(content)[:_WEB_FETCH_MAX_CHARS]
+            search_results.append(f"[web_fetch] Portal: {site_url}\n{truncated}")
+            logger.info("web_fetch OK: %s", site_url)
+        except Exception as e:
+            logger.warning("web_fetch falhou para '%s': %s", site_url, e)
 
     if not search_results:
         _write_error(args.output, args.client_id, niche, "Todas as buscas falharam")

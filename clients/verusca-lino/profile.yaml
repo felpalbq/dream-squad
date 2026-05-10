@@ -1,0 +1,67 @@
+client_id: verusca-lino
+name: "Dra. Verusca Lino"
+niche: "pediatria"
+location: "Ilhéus, BA"
+active: true
+
+persona:
+  instagram_handle: "@verusca.lino"
+  bio: "Pediatra em Ilhéus, BA. Saúde infantil com acolhimento e informação de qualidade."
+
+audience:
+  description: "Pais e mães de bebês e crianças até 12 anos, Ilhéus e região sul da Bahia"
+  location: "Ilhéus e Itabuna, BA"
+  pain_points:
+    - "Insegurança sobre sintomas e quando ir ao médico"
+    - "Dúvidas sobre alimentação, vacinas e desenvolvimento infantil"
+    - "Ansiedade em relação à saúde dos filhos"
+    - "Dificuldade de acessar informação confiável de forma simples"
+
+voice:
+  tone:
+    - "institucional"
+    - "emocional leve"
+    - "educativo"
+  style: "linguagem acessível e acolhedora, com autoridade médica sem ser fria ou distante"
+  avoid:
+    - "linguagem clínica e técnica sem tradução"
+    - "tom alarmista sobre doenças"
+    - "conteúdo político-partidário ou religioso"
+
+objectives:
+  - "autoridade"
+  - "reconhecimento regional"
+  - "vínculo com a comunidade"
+
+operator_notes: >
+  Cliente valoriza referências institucionais confiáveis: Associação Brasileira de Pediatria (ABP),
+  Ministério da Saúde e ANVISA. Priorizar datas e campanhas do calendário de saúde (ex: Maio Laranja,
+  Agosto Dourado, Outubro Rosa) como ganchos de pauta — sazonalidade é muito valorizada pela cliente.
+
+instagram_reference_profiles:
+  - url: "https://www.instagram.com/leitedanielle/"
+    handle: "@leitedanielle"
+    relevance: "pediatra com alto engajamento, conteúdo educativo para pais"
+  - url: "https://www.instagram.com/maemedicanamedida/"
+    handle: "@maemedicanamedida"
+    relevance: "médica e mãe — posicionamento emocional + autoridade"
+  - url: "https://www.instagram.com/dra.luanna/"
+    handle: "@dra.luanna"
+    relevance: "pediatra com comunicação leve e acessível"
+  - url: "https://www.instagram.com/pediatriaintegralbr/"
+    handle: "@pediatriaintegralbr"
+    relevance: "perfil institucional de pediatria com alcance nacional"
+  - url: "https://www.instagram.com/dracamilacoelho.pediatra/"
+    handle: "@dracamilacoelho.pediatra"
+    relevance: "pediatra regional com boa presença digital"
+
+research:
+  apify_max_crawl_requests: 30    # limite de requisições HTTP por chamada ao actor (segurança)
+  apify_max_posts_per_profile: 5  # controla custo real: 5 perfis × 5 posts × $0,001 = $0,025/run
+  tavily_max_requests: 3          # 2 créditos/query (advanced) — fontes institucionais requerem profundidade
+  tavily_search_depth: "advanced"
+  tavily_days: 60
+  gemini_context: >
+    Pediatra em Ilhéus, BA. Público são pais e mães ansiosos buscando orientação confiável.
+    Priorizar campanhas do calendário de saúde e recomendações de órgãos oficiais (ABP, Min. Saúde, ANVISA).
+    Conteúdo educativo e emocional, nunca alarmista.

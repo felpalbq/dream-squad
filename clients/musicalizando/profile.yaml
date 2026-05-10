@@ -1,0 +1,55 @@
+client_id: musicalizando
+name: "Musicalizando"
+niche: "escola de música infanto-juvenil"
+location: "Itabuna, BA"
+active: true
+
+persona:
+  instagram_handle: "@musicalizando"
+  bio: "Escola de música para crianças e adolescentes em Itabuna, BA. Aprender música transforma."
+
+audience:
+  description: "Pais e mães de crianças e adolescentes (5–17 anos) interessados em formação musical, Itabuna e região"
+  location: "Itabuna e Ilhéus, BA"
+  pain_points:
+    - "Dúvida sobre qual instrumento começar e qual escola confiar"
+    - "Preocupação em manter o filho engajado e motivado"
+    - "Falta de opções culturais de qualidade na região"
+    - "Incerteza sobre os benefícios reais da educação musical"
+
+voice:
+  tone:
+    - "descontraído"
+    - "emocional"
+    - "educativo"
+  style: "caloroso e inspirador, próximo aos pais e às crianças, linguagem leve sem termos técnicos musicais"
+  avoid:
+    - "linguagem técnica de teoria musical sem tradução"
+    - "tom excessivamente sério ou acadêmico"
+    - "conteúdo político-partidário ou religioso"
+
+objectives:
+  - "alcance"
+  - "visibilidade"
+  - "conversão"
+  - "vínculo emocional"
+
+instagram_reference_profiles:
+  - url: "https://www.instagram.com/preceptoradiana/"
+    handle: "@preceptoradiana"
+    relevance: "educação infanto-juvenil com forte vínculo emocional e engajamento"
+  - url: "https://www.instagram.com/salviano.michele/"
+    handle: "@salviano.michele"
+    relevance: "música e educação — posicionamento emocional e inspiracional"
+
+research:
+  apify_max_crawl_requests: 30    # limite de requisições HTTP por chamada ao actor (segurança)
+  apify_max_posts_per_profile: 5  # controla custo real: 2 perfis × 5 posts × $0,001 = $0,010/run
+  tavily_max_requests: 3          # 1 crédito/query (basic)
+  tavily_search_depth: "basic"
+  tavily_days: 30
+  gemini_context: >
+    Escola de música voltada ao público infanto-juvenil em Itabuna, BA.
+    Público são pais que querem proporcionar formação cultural e artística aos filhos.
+    Ganchos: benefícios cognitivos da música, histórias de transformação, datas comemorativas
+    (Dia da Música, volta às aulas, Dia das Crianças). Conteúdo emocional e inspirador.

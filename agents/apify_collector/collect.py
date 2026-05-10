@@ -61,7 +61,7 @@ def main():
 
     client_profile = load_profile(args.client_id)
     research_cfg = client_profile.get("research", {})
-    budget_credits = research_cfg.get("apify_budget_credits", 30)
+    max_crawl_requests = research_cfg.get("apify_max_crawl_requests", 30)
     profiles = client_profile.get("instagram_reference_profiles", [])
     max_posts = research_cfg.get("apify_max_posts_per_profile", 5)
 
@@ -86,8 +86,8 @@ def main():
                 run_input={
                     "directUrls": [f"https://www.instagram.com/{handle}/"],
                     "resultsType": "posts",
-                    "resultsLimit": max_posts,
-                    "maxRequestsPerCrawl": budget_credits,
+                    "resultsLimit": max_posts,        # trava de custo: $0,001 × max_posts
+                    "maxRequestsPerCrawl": max_crawl_requests,  # trava de segurança HTTP
                 },
             )
 

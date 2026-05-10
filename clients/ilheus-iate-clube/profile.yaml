@@ -1,0 +1,56 @@
+client_id: ilheus-iate-clube
+name: "Ilhéus Iate Clube"
+niche: "clube de sócios náutico"
+location: "Ilhéus, BA"
+active: true
+
+persona:
+  instagram_handle: "@ilheusiateclube"
+  bio: "Clube náutico em Ilhéus, BA. Lazer, esporte e convivência à beira-mar."
+
+audience:
+  description: "Famílias, pescadores esportivos, amantes de náutica e vela, classe média/alta, Ilhéus e região"
+  location: "Ilhéus e sul da Bahia"
+  pain_points:
+    - "Busca por opções de lazer de qualidade fora do cotidiano"
+    - "Desejo de pertencer a uma comunidade com interesses comuns"
+    - "Vontade de praticar esportes náuticos sem saber por onde começar"
+    - "Falta de tempo e de ambientes seguros para lazer em família"
+
+voice:
+  tone:
+    - "descontraído"
+    - "emocional leve"
+    - "institucional leve"
+  style: "elegante sem ser formal, evocando sensação de pertencimento, natureza e qualidade de vida"
+  avoid:
+    - "linguagem muito técnica sobre náutica"
+    - "tom elitista ou excludente"
+    - "conteúdo político-partidário ou religioso"
+
+objectives:
+  - "alcance"
+  - "visibilidade"
+  - "autoridade"
+  - "conversão"
+  - "reconhecimento"
+
+instagram_reference_profiles:
+  - url: "https://www.instagram.com/pesque_pague_recanto_familia/"
+    handle: "@pesque_pague_recanto_familia"
+    relevance: "lazer e natureza para famílias com engajamento regional"
+  - url: "https://www.instagram.com/comprenautica/"
+    handle: "@comprenautica"
+    relevance: "náutica e estilo de vida aquático — referência de nicho"
+
+research:
+  apify_max_crawl_requests: 30    # limite de requisições HTTP por chamada ao actor (segurança)
+  apify_max_posts_per_profile: 5  # controla custo real: 2 perfis × 5 posts × $0,001 = $0,010/run
+  tavily_max_requests: 3          # 1 crédito/query (basic)
+  tavily_search_depth: "basic"
+  tavily_days: 30
+  gemini_context: >
+    Clube náutico de sócios em Ilhéus, BA. Público são famílias e adultos que buscam
+    lazer de qualidade, esportes aquáticos e pertencimento a uma comunidade.
+    Ganchos: feriados, alta temporada, eventos regionais de pesca esportiva, vela e remo,
+    qualidade de vida e natureza litorânea do sul da Bahia.

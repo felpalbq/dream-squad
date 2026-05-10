@@ -1,0 +1,23 @@
+# manual_input.yaml — Edite antes de executar quando houver eventos relevantes.
+# Deixe resultados: [] se não houver nada a adicionar nesta execução.
+#
+# O campo valido_ate (opcional) define até quando a entrada é válida.
+# Entradas com valido_ate anterior a hoje são ignoradas automaticamente.
+# Remova ou deixe comentado para sem expiração.
+
+resultados: []
+
+# Exemplo de entrada preenchida:
+#
+# resultados:
+#   - tema: "Alta temporada de chuvas"
+#     titulo: "Temporada de chuvas aumenta demanda por telas e proteções"
+#     descricao: >
+#       Período de chuvas intensas em Ilhéus aumenta interesse por telas de proteção
+#       em janelas e sacadas. Oportunidade para reels mostrando instalações recentes
+#       e orientando sobre proteção do imóvel na temporada.
+#     url_fonte: ""
+#     data_hora: "2025-11-01"
+#     relevancia_nicho: 9
+#     origem: "manual"
+#     valido_ate: "2025-02-28"

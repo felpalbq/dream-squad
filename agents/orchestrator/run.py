@@ -48,14 +48,12 @@ def health_check(env: str) -> dict:
     except ImportError:
         status["tavily"] = False
 
-    if env == "ollama":
-        status["ollama"] = bool(os.environ.get("OLLAMA_API_KEY"))
+    status["ollama"] = bool(os.environ.get("OLLAMA_API_KEY"))
+    if status["ollama"]:
         try:
             import ollama  # noqa
         except ImportError:
             status["ollama"] = False
-    else:
-        status["ollama"] = False
 
     status["apify"] = bool(os.environ.get("APIFY_API_TOKEN"))
     try:
@@ -228,9 +226,9 @@ def main():
         )
         session["stages"]["tavily"] = {**metrics, "output": str(tavily_output)}
 
-    # 3. Ollama Regional Researcher (apenas ambiente Ollama)
+    # 3. Ollama Regional Researcher (disponível em qualquer ambiente, desde que OLLAMA_API_KEY esteja configurada)
     ollama_output = exec_d / "research" / "ollama_research.yaml"
-    if env == "ollama" and not args.skip_ollama_research:
+    if health_status.get("ollama") and not args.skip_ollama_research:
         metrics = _run(
             [sys.executable, "agents/ollama_researcher/research.py",
              "--client-id", args.client_id, "--output", str(ollama_output)],
@@ -238,10 +236,8 @@ def main():
         )
         session["stages"]["ollama_researcher"] = {**metrics, "output": str(ollama_output)}
     else:
-        session["stages"]["ollama_researcher"] = {
-            "status": "pulado",
-            "motivo": "N/A (ambiente anthropic)" if env == "anthropic" else "skip solicitado",
-        }
+        motivo = "skip solicitado" if args.skip_ollama_research else "OLLAMA_API_KEY não configurada"
+        session["stages"]["ollama_researcher"] = {"status": "pulado", "motivo": motivo}
 
     # 4. Apify Collector
     apify_output = exec_d / "research" / "apify_research.yaml"

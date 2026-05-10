@@ -8,7 +8,7 @@ Este arquivo fornece ao Claude Code o contexto completo do projeto Dream Squad.
 
 Sistema multi-agentes rodando dentro do Claude Code CLI. Automatiza a produção de conteúdo estratégico (carrosséis, roteiros de reels/stories/b-rolls) para pequenas empresas de Ilhéus/Itabuna (BA) sem verba para tráfego pago. O operador é o estrategista/gestor; os clientes recebem o conteúdo via board Trello atualizado 2×/semana.
 
-**Stack:** Python · Gemini API (pesquisa nacional) · Tavily (web search geral) · Ollama Python SDK (web search regional — apenas ambiente Ollama) · Apify (posts públicos de perfis de referência) · Input manual do operador · Trello (publicação) · Claude Code CLI (todos os agentes LLM)
+**Stack:** Python · Gemini API (pesquisa nacional) · Tavily (web search geral) · Ollama Python SDK (web search regional — disponível em qualquer ambiente se `OLLAMA_API_KEY` configurada) · Apify (posts públicos de perfis de referência) · Input manual do operador · Trello (publicação) · Claude Code CLI (todos os agentes LLM)
 
 ---
 
@@ -34,7 +34,7 @@ O operador invoca o sistema em linguagem natural. O Claude Code (orquestrador) s
 python agents/orchestrator/run.py --client-id casadobicho
 ```
 
-Cria diretório de execução com timestamp, roda Gemini, Tavily, Ollama Regional (se ambiente Ollama), Apify e Manual Input serialmente. Imprime ao final as instruções exatas para o Claude Code continuar.
+Cria diretório de execução com timestamp, roda Gemini, Tavily, Ollama Regional (se `OLLAMA_API_KEY` configurada), Apify e Manual Input serialmente. Imprime ao final as instruções exatas para o Claude Code continuar.
 
 Flags opcionais: `--skip-gemini` · `--skip-tavily` · `--skip-ollama-research` · `--skip-apify` · `--exec-dir <path>`
 
@@ -93,7 +93,7 @@ Todos os agentes LLM são sub-agentes nativos do Claude Code (Task tool). As exc
         ↓
 [Tavily Researcher] — web search geral (API Python)
         ↓
-[Ollama Regional Researcher] — notícias locais via web_search (apenas ambiente Ollama)
+[Ollama Regional Researcher] — notícias locais via web_search (qualquer ambiente, requer OLLAMA_API_KEY)
         ↓
 [Apify Collector] — posts públicos de perfis de referência (API Python)
         ↓
@@ -130,7 +130,7 @@ Todos os agentes LLM são sub-agentes nativos do Claude Code (Task tool). As exc
 - Strip de HTML nos resultados antes de gravar
 - Output: `tavily_research.yaml` com campo `pesquisa_tavily`
 
-**Ollama Regional Researcher** (`agents/ollama_researcher/research.py`) — *apenas ambiente Ollama*
+**Ollama Regional Researcher** (`agents/ollama_researcher/research.py`) — *qualquer ambiente, ativado se `OLLAMA_API_KEY` estiver configurada*
 - Busca notícias de Ilhéus/Itabuna via `ollama.web_search()`
 - Executa 3 queries direcionadas, sintetiza via `client.chat()`
 - Output: `ollama_research.yaml` com campo `pesquisa_ollama_regional`
@@ -207,11 +207,26 @@ dream-squad/
 
 ---
 
+## Clientes Ativos
+
+| client_id | Nome | Nicho | Localização |
+|---|---|---|---|
+| `casadobicho` | Casa do Bicho | Veterinária | Ilhéus, BA |
+| `verusca-lino` | Dra. Verusca Lino | Pediatria | Ilhéus, BA |
+| `ed-telas-e-varais` | Ed Telas e Varais | Serviços (telas/varais) | Ilhéus, BA |
+| `musicalizando` | Musicalizando | Escola de música infanto-juvenil | Itabuna, BA |
+| `ilheus-iate-clube` | Ilhéus Iate Clube | Clube de sócios náutico | Ilhéus, BA |
+| `opcao-seguros` | Opção Seguros | Seguros, financiamentos e consórcio | Itabuna, BA |
+
+**Perfil geral:** todos os clientes têm ticket baixo, pouco conhecimento de marketing, interesse em posicionamento digital e resistência a produzir conteúdo orgânico autêntico. Macros comuns: engajamento, visibilidade, alcance e conversão. Diretrizes transversais: evitar polêmica, linguagem intrusiva e conteúdo político-partidário. Carrosséis prontos para postar são o produto-chefe; roteiros de reels e stories são entregues com direção de arte detalhada. **Exceção:** `ed-telas-e-varais` — carrosséis são inviáveis para o nicho; foco exclusivo em reels e stories.
+
+---
+
 ## Schema do profile.yaml
 
 ```yaml
 client_id: "casadobicho"
-name: "Casa di Bicho"
+name: "Casa do Bicho"
 niche: "veterinária"
 location: "Ilhéus, BA"
 active: true
@@ -223,26 +238,52 @@ persona:
 audience:
   description: "tutores de pets, principalmente mulheres, 25-45 anos"
   location: "Ilhéus e Itabuna, BA"
+  pain_points:
+    - "dor relevante do público"
 
 voice:
   tone:
-    - "próximo"
+    - "institucional leve"
     - "educativo"
-    - "afetivo"
+    - "emocional leve"
   style: "linguagem acessível, sem jargão técnico"
+  avoid:
+    - "tom clínico e frio"
+
+objectives:
+  - "autoridade"
+  - "reconhecimento"
+
+# operator_notes: instruções específicas do operador para este cliente (opcional)
+operator_notes: >
+  Contexto e ressalvas importantes que guiam a produção de conteúdo.
+
+# content_strategy: override de formato para clientes com restrição (opcional)
+content_strategy:
+  carousel_viable: true          # false para ed-telas-e-varais
+  focus_formats:
+    - "carrosséis"
+    - "reels"
+    - "stories"
 
 instagram_reference_profiles:
   - url: "https://instagram.com/handle_referencia"
     handle: "@handle_referencia"
-    relevance: "veterinária com alto engajamento"
+    relevance: "descrição da relevância"
 
 research:
-  apify_budget_credits: 30           # créditos máximos por execução Apify
-  apify_max_posts_per_profile: 5     # posts por perfil de referência
-  tavily_max_requests: 3             # queries máximas por execução Tavily
+  apify_max_crawl_requests: 30    # limite de requisições HTTP por chamada ao actor (segurança, não custo)
+  apify_max_posts_per_profile: 5  # CONTROLA CUSTO: posts × $0,001/post (apify/instagram-scraper)
+  tavily_max_requests: 3          # queries/run = créditos consumidos (1 basic / 2 advanced cada)
+  tavily_search_depth: "basic"   # "basic" (1 crédito) ou "advanced" (2 créditos) por query
+  tavily_days: 30                # filtro de recência em dias
   gemini_context: >
     Contexto adicional para o pesquisador Gemini.
 ```
+
+**Budget Apify:** plano gratuito = $5/mês (renova mensalmente, não acumula). Custo total estimado com 6 clientes × 2 runs/semana = **640 posts/mês = $0,64/mês**. Margem: ~$4,36. Alavanca de custo real é `apify_max_posts_per_profile`, não `apify_max_crawl_requests`.
+
+**Budget Tavily:** plano gratuito = 1.000 créditos/mês (renova mensalmente). 6 clientes × 3 queries × 8 runs = 144 queries/mês. Pior caso (todos advanced = 2 créditos): **288 créditos/mês**. Margem: ~712 créditos. Alavancas: `tavily_max_requests` (quantidade) e `tavily_search_depth` (custo por query).
 
 ---
 
