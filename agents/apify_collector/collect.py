@@ -8,6 +8,7 @@ Falha silenciosa se API indisponível ou budget esgotado.
 """
 
 import os
+import re
 import sys
 import json
 import yaml
@@ -19,6 +20,7 @@ from agents.utils.paths import load_profile
 from agents.utils.logging_config import get_logger
 from agents.utils.retry import with_retry
 from agents.utils.validators import PesquisaApify, validate_yaml_output
+from agents.scoring_merge.score import score_from_dict
 
 logger = get_logger(__name__)
 
@@ -36,6 +38,32 @@ def _run_actor(client, actor_id: str, run_input: dict) -> list[dict]:
     run = client.actor(actor_id).call(run_input=run_input)
     items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
     return items
+
+
+def _extract_tema(caption: str) -> str:
+    """Primeira frase ou primeira hashtag forte."""
+    caption = caption.strip()
+    first_sentence = re.split(r"[.!?\n]", caption, maxsplit=1)[0]
+    if 20 <= len(first_sentence) <= 80:
+        return first_sentence.strip()
+    hashtags = re.findall(r"#(\w+)", caption)
+    if hashtags:
+        return " · ".join(hashtags[:3])
+    return caption[:80].strip()
+
+
+def _build_titulo(handle: str, item: dict) -> str:
+    """Título distintivo: data + tipo + handle."""
+    date_str = str(item.get("timestamp", ""))[:10]
+    post_type = item.get("type", "Post")
+    return f"{post_type} de @{handle} ({date_str})"
+
+
+def _clean_caption(caption: str) -> str:
+    """Remove emojis no início, normaliza espaço, trunca em 400."""
+    cleaned = re.sub(r"^[^\w]+", "", caption)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned[:400]
 
 
 def main():
@@ -92,17 +120,26 @@ def main():
             )
 
             for item in items:
+                post_dict = {
+                    "curtidas": item.get("likesCount", 0),
+                    "comentarios": item.get("commentsCount", 0),
+                    "data_postagem": str(item.get("timestamp", "")),
+                }
+                engagement_score = score_from_dict(post_dict, "instagram")
                 resultados.append({
-                    "tema": (item.get("caption", "")[:80] or f"Post de @{handle}"),
-                    "titulo": f"Post de @{handle}",
-                    "descricao": item.get("caption", "")[:400],
+                    "tema": _extract_tema(item.get("caption", "")),
+                    "titulo": _build_titulo(handle, item),
+                    "descricao": _clean_caption(item.get("caption", "")),
                     "url_fonte": item.get("url", ""),
                     "data_hora": str(item.get("timestamp", ""))[:10],
-                    "relevancia_nicho": 5,
+                    "relevancia_nicho": None,
                     "origem": "apify",
                     "perfil": f"@{handle}",
                     "curtidas": item.get("likesCount", 0),
                     "comentarios": item.get("commentsCount", 0),
+                    "engagement_score": engagement_score,
+                    "post_type": item.get("type", ""),
+                    "hashtags": item.get("hashtags", [])[:10],
                 })
 
             logger.info("Apify OK: @%s — %d posts", handle, len(items))
@@ -127,7 +164,13 @@ def main():
         }
     }
 
-    validate_yaml_output(data["pesquisa_apify"], PesquisaApify, "apify")
+    try:
+        validate_yaml_output(data["pesquisa_apify"], PesquisaApify, "apify")
+    except ValueError as e:
+        _write_error(args.output, args.client_id, str(e))
+        logger.error("Apify: schema inválido: %s. Fonte pulada.", e)
+        print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": 0}))
+        sys.exit(0)
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)

@@ -34,6 +34,7 @@ resultados:
     data_hora: "YYYY-MM-DD"
     relevancia_nicho: 8    # 0-10
     origem: "manual"
+    prioridade_operador: "normal"  # alta | normal (default: normal)
     # valido_ate: "YYYY-MM-DD"   # opcional — deixe comentado para sem expiração
 """
 
@@ -90,7 +91,8 @@ def main():
 
     for r in resultados:
         r["origem"] = "manual"
-        r.pop("valido_ate", None)  # não propagar campo de controle para o YAML de output
+        # valido_ate é campo de controle, não deve ir para output; prioridade_operador sim
+        r.pop("valido_ate", None)
 
     data = {
         "manual_research": {

@@ -17,6 +17,9 @@ from agents.utils.paths import load_profile
 from agents.utils.logging_config import get_logger
 from agents.utils.retry import with_retry
 from agents.utils.validators import PesquisaOllama, validate_yaml_output
+from agents.utils.query_rotation import select_queries, build_query_context, format_query, OLLAMA_TEMPLATES
+from agents.utils.seasonality import seasonal_context
+from agents.utils.text_utils import strip_fences
 
 logger = get_logger(__name__)
 
@@ -64,30 +67,10 @@ pesquisa_ollama_regional:
       data_hora: "YYYY-MM-DD"
       relevancia_nicho: 8
       origem: "ollama"
+      sinal_friccao: ""          # preencher quando houver tensão/polarização
+      sinal_transformacao: ""    # preencher quando houver mudança de comportamento
+      sinal_timing: ""          # preencher: trending_now | weekly_news | evergreen
 """
-
-
-def _seasonal_context(dt: datetime) -> str:
-    m, d = dt.month, dt.day
-    windows = [
-        ((12, 10), (1, 10), "Natal e Ano Novo"),
-        ((1, 25), (2, 28), "Carnaval próximo"),
-        ((4, 25), (5, 14), "Dia das Mães"),
-        ((5, 25), (6, 14), "Dia dos Namorados"),
-        ((7, 25), (8, 14), "Dia dos Pais"),
-        ((10, 25), (11, 30), "Black Friday, pré-Natal"),
-    ]
-    current = (m, d)
-    for (sm, sd), (em, ed), label in windows:
-        if (sm, sd) <= current <= (em, ed):
-            return label
-    month_labels = {
-        1: "início de ano", 2: "verão", 3: "outono chegando",
-        4: "outono/Páscoa", 5: "Dia das Mães", 6: "Dia dos Namorados",
-        7: "férias de julho", 8: "Dia dos Pais", 9: "primavera",
-        10: "Dia das Crianças", 11: "Black Friday", 12: "Natal",
-    }
-    return month_labels.get(m, "período sem sazonalidade específica")
 
 
 def _load_search_sites() -> list[str]:
@@ -102,25 +85,10 @@ def _load_search_sites() -> list[str]:
     ]
 
 
-def _build_queries(niche: str, location: str, date_str: str) -> list[str]:
-    city = location.split(",")[0].strip()
-    month_year = datetime.now().strftime("%B %Y")
-    return [
-        f"notícias {city} Itabuna Bahia {month_year}",
-        f"{niche} {city} Bahia {date_str[:7]}",
-        f"eventos comportamento consumidor {city} Bahia {month_year}",
-    ]
-
-
-def _strip_fences(text: str) -> str:
-    text = text.strip()
-    if text.startswith("```yaml"):
-        text = text[7:]
-    elif text.startswith("```"):
-        text = text[3:]
-    if text.endswith("```"):
-        text = text[:-3]
-    return text.strip()
+def _build_queries(client_profile: dict, max_queries: int = 3) -> list[tuple[str, str]]:
+    context = build_query_context(client_profile)
+    selected = select_queries(OLLAMA_TEMPLATES, max_queries, client_profile.get("client_id", ""))
+    return [(axis, format_query(tpl, context)) for axis, tpl in selected]
 
 
 def _write_error(output: str, client_id: str, niche: str, erro: str) -> None:
@@ -174,12 +142,12 @@ def main():
     niche = client_profile.get("niche", "")
     location = client_profile.get("location", "Ilhéus, BA")
     audience = client_profile.get("audience", {}).get("description", "público geral")
-    seasonal = _seasonal_context(now)
+    seasonal = seasonal_context(now)
 
-    queries = _build_queries(niche, location, date_str)
+    queries = _build_queries(client_profile, max_queries=3)
     search_results = []
 
-    for query in queries:
+    for axis, query in queries:
         try:
             result = web_search(query, max_results=5)
             search_results.append(f"[web_search] Query: {query}\n{result}")
@@ -202,6 +170,10 @@ def main():
         logger.warning("Ollama Regional: todas as buscas falharam. Research continua.")
         print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": 0}))
         sys.exit(0)
+
+    pulse = os.environ.get("DREAM_SQUAD_PULSE", "")
+    if pulse:
+        search_results.append(f"[pulse do operador]\n{pulse}")
 
     synthesis_prompt = _SYNTHESIS_PROMPT.format(
         client_id=args.client_id,
@@ -228,7 +200,7 @@ def main():
 
     try:
         response = _call_ollama()
-        raw = _strip_fences(response.message.content)
+        raw = strip_fences(response.message.content)
         data = yaml.safe_load(raw)
 
         if not isinstance(data, dict) or "pesquisa_ollama_regional" not in data:
@@ -237,7 +209,13 @@ def main():
         for r in data["pesquisa_ollama_regional"].get("resultados", []):
             r.setdefault("origem", "ollama")
 
-        validate_yaml_output(data["pesquisa_ollama_regional"], PesquisaOllama, "ollama")
+        try:
+            validate_yaml_output(data["pesquisa_ollama_regional"], PesquisaOllama, "ollama")
+        except ValueError as e:
+            _write_error(args.output, args.client_id, niche, str(e))
+            logger.error("Ollama Regional: schema inválido: %s. Research continua.", e)
+            print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": 0}))
+            sys.exit(0)
 
         output_path = Path(args.output)
         output_path.parent.mkdir(parents=True, exist_ok=True)

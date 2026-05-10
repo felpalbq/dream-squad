@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# Runtime selector cache
+.dream_squad_session
+
 # Credenciais
 build/credenciais/
 

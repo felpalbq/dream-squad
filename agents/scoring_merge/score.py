@@ -55,10 +55,12 @@ def score_from_dict(post: dict, platform: str) -> float:
 
 
 def rank_posts(posts: list[dict], platform: str) -> list[dict]:
-    """Retorna posts ordenados por score decrescente."""
-    for p in posts:
-        p["engagement_score"] = score_from_dict(p, platform)
-    return sorted(posts, key=lambda x: x["engagement_score"], reverse=True)
+    """Retorna posts ordenados por score decrescente (input imutável)."""
+    enriched = [
+        {**p, "engagement_score": score_from_dict(p, platform)}
+        for p in posts
+    ]
+    return sorted(enriched, key=lambda x: x["engagement_score"], reverse=True)
 
 
 if __name__ == "__main__":

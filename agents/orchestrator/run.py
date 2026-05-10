@@ -9,19 +9,112 @@ Uso:
 """
 
 import os
+import re
 import sys
 import json
+import unicodedata
 import argparse
 import subprocess
 import yaml
 from pathlib import Path
 from datetime import datetime
 
-from agents.utils.paths import load_profile, execution_dir
+from agents.utils.paths import load_profile, execution_dir, client_dir
 from agents.utils.logging_config import get_logger
 
 ROOT = Path(__file__).parent.parent.parent
 logger = get_logger(__name__)
+
+
+# --- Cooldown de pautas ---
+
+def _load_used_topics(client_id: str) -> list[dict]:
+    path = client_dir(client_id) / "research" / "used_topics.json"
+    if not path.exists():
+        return []
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def _cleanup_used_topics(topics: list[dict]) -> list[dict]:
+    """Remove entradas com mais de 14 dias."""
+    from datetime import date, timedelta
+    cutoff = date.today() - timedelta(days=14)
+    cleaned = []
+    for t in topics:
+        try:
+            d = date.fromisoformat(t.get("data_uso", ""))
+            if d >= cutoff:
+                cleaned.append(t)
+        except (ValueError, TypeError):
+            continue
+    return cleaned
+
+
+def _save_used_topics(client_id: str, topics: list[dict]) -> None:
+    path = client_dir(client_id) / "research" / "used_topics.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(topics, f, ensure_ascii=False, indent=2)
+
+
+def _extract_topics_from_research(exec_dir: Path, client_id: str) -> list[dict]:
+    """Extrai temas dos YAMLs de pesquisa para o cooldown."""
+    research_dir = exec_dir / "research"
+    if not research_dir.exists():
+        return []
+    files = [
+        "gemini_research.yaml",
+        "tavily_research.yaml",
+        "ollama_research.yaml",
+        "apify_research.yaml",
+        "manual_research.yaml",
+    ]
+    keys = [
+        "pesquisa_gemini",
+        "pesquisa_tavily",
+        "pesquisa_ollama_regional",
+        "pesquisa_apify",
+        "manual_research",
+    ]
+    topics = []
+    seen = set()
+    today = datetime.now().strftime("%Y-%m-%d")
+    for fname, key in zip(files, keys):
+        p = research_dir / fname
+        if not p.exists():
+            continue
+        try:
+            with open(p, encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            container = data.get(key, {})
+            for r in container.get("resultados", []):
+                tema = r.get("tema", "")
+                if not tema or tema in seen:
+                    continue
+                seen.add(tema)
+                # Normalização simples para comparação futura
+                normalizado = (
+                    unicodedata.normalize("NFD", tema.lower())
+                    .encode("ascii", "ignore")
+                    .decode("ascii")
+                )
+                normalizado = " ".join(
+                    w for w in re.sub(r"[^\w\s]", " ", normalizado).split()
+                    if len(w) > 2
+                )
+                topics.append({
+                    "tema": tema,
+                    "tema_normalizado": normalizado,
+                    "data_uso": today,
+                    "execution_dir": str(exec_dir),
+                })
+        except Exception:
+            continue
+    return topics
 
 
 def detect_environment() -> str:
@@ -29,11 +122,21 @@ def detect_environment() -> str:
     if env in ("anthropic", "ollama"):
         return env
     print(
-        "[ERRO] DREAM_SQUAD_ENV não definida ou inválida. "
-        "Defina como 'anthropic' ou 'ollama' no .env antes de executar.",
+        "[ERRO] DREAM_SQUAD_ENV não definida.\n"
+        "Quando invocado pelo Claude Code, ele deve apresentar o selector "
+        "de ambiente antes de chamar este script.\n"
+        "Quando invocado direto (ex: cron), exporte DREAM_SQUAD_ENV=anthropic|ollama.",
         file=sys.stderr,
     )
     sys.exit(1)
+
+
+def _load_pulse() -> str:
+    """Lê pulse.md da raiz do projeto, se existir."""
+    pulse_path = ROOT / "pulse.md"
+    if pulse_path.exists():
+        return pulse_path.read_text(encoding="utf-8").strip()
+    return ""
 
 
 def health_check(env: str) -> dict:
@@ -181,6 +284,11 @@ def main():
     env = detect_environment()
     print(f"\n[config] Ambiente: {env}")
 
+    pulse = _load_pulse()
+    if pulse:
+        os.environ["DREAM_SQUAD_PULSE"] = pulse
+        print(f"\n[pulse] Contexto manual carregado ({len(pulse)} chars)")
+
     health_status = health_check(env)
 
     if args.exec_dir:
@@ -260,6 +368,35 @@ def main():
     )
     session["stages"]["manual_input"] = {**metrics, "output": str(manual_output)}
 
+    # 6. Pré-clustering determinístico (antes do Scoring/Merge)
+    clusters_output = exec_d / "research" / "clusters_preprocessed.yaml"
+    try:
+        subprocess.run(
+            [sys.executable, "agents/scoring_merge/preprocess.py",
+             "--exec-dir", str(exec_d), "--output", str(clusters_output)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            cwd=str(ROOT),
+            timeout=30,
+            check=True,
+        )
+        logger.info("Pré-clustering OK: %s", clusters_output)
+    except Exception as e:
+        logger.warning("Pré-clustering falhou: %s", e)
+
+    # Cooldown: carregar histórico de pautas usadas e copiar para exec_dir
+    used_topics = _load_used_topics(args.client_id)
+    used_topics = _cleanup_used_topics(used_topics)
+    used_topics_path = exec_d / "research" / "used_topics.json"
+    with open(used_topics_path, "w", encoding="utf-8") as f:
+        json.dump(used_topics, f, ensure_ascii=False, indent=2)
+
+    # Extrair e salvar temas desta execução no histórico global
+    new_topics = _extract_topics_from_research(exec_d, args.client_id)
+    used_topics.extend(new_topics)
+    _save_used_topics(args.client_id, used_topics)
+
     session["total_elapsed_s"] = round((datetime.now() - t_start).total_seconds(), 1)
 
     session_path = exec_d / "session.yaml"
@@ -279,6 +416,8 @@ def main():
         ("ollama_research.yaml", "Ollama Regional"),
         ("apify_research.yaml", "Apify"),
         ("manual_research.yaml", "Manual Input"),
+        ("clusters_preprocessed.yaml", "Pré-clustering"),
+        ("used_topics.json", "Cooldown de Pautas"),
     ]:
         p = exec_d / "research" / fname
         if p.exists():
@@ -287,19 +426,14 @@ def main():
     inputs_str = "\n".join(inputs_disponiveis) if inputs_disponiveis else "     (nenhum input disponível)"
 
     # Instruções para o Claude Code continuar
-    if env == "anthropic":
-        scoring_instrucao = f"""   Spawne um sub-agente com:
+    # Nota: em qualquer ambiente (anthropic ou ollama), o Scoring/Merge é invocado
+    # via Task tool nativa do Claude Code. O DREAM_SQUAD_ENV indica apenas o modelo
+    # subjacente (Sonnet vs Kimi/etc), não o mecanismo de invocação.
+    scoring_instrucao = f"""   Spawne um sub-agente com:
    - Instruções: agents/scoring_merge/instructions.md
    - Cliente: {args.client_id} | Nicho: {client.get('niche', '')}
    - Público: {client.get('audience', {}).get('description', '')}
-   - Inputs disponíveis:
-{inputs_str}
-     clients/{args.client_id}/profile.yaml
-   - Output: {exec_d}/research/final_research.md"""
-    else:
-        scoring_instrucao = f"""   Execute via Ollama:
-   - Leia agents/scoring_merge/instructions.md
-   - Use ollama.Client.chat() com o modelo {os.environ.get('OLLAMA_MODEL', 'kimi-k2.6:cloud')}
+   - Ambiente: {env} (Task tool nativa do Claude Code)
    - Inputs disponíveis:
 {inputs_str}
      clients/{args.client_id}/profile.yaml

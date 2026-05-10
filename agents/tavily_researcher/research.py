@@ -18,19 +18,15 @@ from agents.utils.paths import load_profile
 from agents.utils.logging_config import get_logger
 from agents.utils.retry import with_retry
 from agents.utils.validators import PesquisaTavily, validate_yaml_output
+from agents.utils.query_rotation import select_queries, build_query_context, format_query, TAVILY_TEMPLATES
 
 logger = get_logger(__name__)
 
 
-def _build_queries(niche: str, audience: str, location: str) -> list[str]:
-    city = location.split(",")[0].strip()
-    year = datetime.now().strftime("%Y")
-    audience_first = audience.split(",")[0].strip()
-    return [
-        f"{niche} tendências Brasil {year}",
-        f"comportamento consumidor {audience_first} Brasil",
-        f"{niche} {city} Bahia",
-    ]
+def _build_queries(client_profile: dict, max_requests: int) -> list[tuple[str, str]]:
+    context = build_query_context(client_profile)
+    selected = select_queries(TAVILY_TEMPLATES, max_requests, client_profile.get("client_id", ""))
+    return [(axis, format_query(tpl, context)) for axis, tpl in selected]
 
 
 def _strip_html(text: str) -> str:
@@ -44,10 +40,24 @@ def _tavily_search(
     max_results: int = 5,
     search_depth: str = "basic",
     days: int | None = None,
+    axis: str = "",
+    topic_news: bool = False,
+    country: str | None = None,
+    include_domains: list[str] | None = None,
+    exclude_domains: list[str] | None = None,
 ) -> list[dict]:
-    kwargs = {"query": query, "max_results": max_results, "search_depth": search_depth}
+    kwargs: dict = {"query": query, "max_results": max_results, "search_depth": search_depth}
     if days is not None:
         kwargs["days"] = days
+    if topic_news and axis == "noticia":
+        kwargs["topic"] = "news"
+        kwargs["time_range"] = "week"
+    if country:
+        kwargs["country"] = country
+    if include_domains:
+        kwargs["include_domains"] = include_domains
+    if exclude_domains:
+        kwargs["exclude_domains"] = exclude_domains
     response = client.search(**kwargs)
     return response.get("results", [])
 
@@ -81,14 +91,27 @@ def main():
     max_requests = research_cfg.get("tavily_max_requests", 3)
     search_depth = research_cfg.get("tavily_search_depth", "basic")
     days = research_cfg.get("tavily_days", 30)
+    topic_news = research_cfg.get("tavily_topic_news", False)
+    country = research_cfg.get("tavily_country", None)
+    include_domains = research_cfg.get("tavily_include_domains", None)
+    exclude_domains = research_cfg.get("tavily_exclude_domains", None)
 
     tavily = TavilyClient(api_key=api_key)
-    queries = _build_queries(niche, audience, location)[:max_requests]
+    queries = _build_queries(client_profile, max_requests)
 
     raw_results: list[dict] = []
-    for query in queries:
+    for axis, query in queries:
         try:
-            results = _tavily_search(tavily, query, search_depth=search_depth, days=days)
+            results = _tavily_search(
+                tavily, query,
+                search_depth=search_depth,
+                days=days,
+                axis=axis,
+                topic_news=topic_news,
+                country=country,
+                include_domains=include_domains,
+                exclude_domains=exclude_domains,
+            )
             for r in results:
                 raw_results.append({
                     "tema": _strip_html(r.get("title", ""))[:80],
@@ -96,10 +119,11 @@ def main():
                     "descricao": _strip_html(r.get("content", ""))[:400],
                     "url_fonte": r.get("url", ""),
                     "data_hora": datetime.now().strftime("%Y-%m-%d"),
-                    "relevancia_nicho": 5,  # neutro — Scoring/Merge reavalia
+                    "relevancia_nicho": None,
                     "origem": "tavily",
+                    "sinal_timing": "weekly_news" if axis == "noticia" else "evergreen",
                 })
-            logger.info("Tavily OK: '%s' → %d resultados", query, len(results))
+            logger.info("Tavily OK [%s]: '%s' → %d resultados", axis, query, len(results))
         except Exception as e:
             logger.warning("Tavily falhou para '%s': %s", query, e)
 
@@ -118,7 +142,13 @@ def main():
         }
     }
 
-    validate_yaml_output(data["pesquisa_tavily"], PesquisaTavily, "tavily")
+    try:
+        validate_yaml_output(data["pesquisa_tavily"], PesquisaTavily, "tavily")
+    except ValueError as e:
+        _write_error(args.output, args.client_id, niche, str(e))
+        logger.error("Tavily: schema inválido: %s. Fonte pulada.", e)
+        print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": 0}))
+        sys.exit(0)
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
