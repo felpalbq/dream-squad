@@ -20,7 +20,7 @@ from agents.utils.paths import load_profile
 from agents.utils.logging_config import get_logger
 from agents.utils.retry import with_retry
 from agents.utils.validators import PesquisaApify, validate_yaml_output
-from agents.scoring_merge.score import score_from_dict
+from agents.utils.engagement import score_from_dict
 
 logger = get_logger(__name__)
 
@@ -34,7 +34,7 @@ def _is_permission_error(e: Exception) -> bool:
 
 
 @with_retry(max_attempts=2, base_delay=3.0, label="Apify run")
-def _run_actor(client, actor_id: str, run_input: dict) -> list[dict]:
+def _run_actor(client, actor_id: str, run_input: dict, retries: list = None) -> list[dict]:
     run = client.actor(actor_id).call(run_input=run_input)
     items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
     return items
@@ -101,12 +101,14 @@ def main():
 
     apify = ApifyClient(api_token)
     resultados = []
+    total_retries = 0
 
     for profile_info in profiles:
         handle = profile_info.get("handle", "").lstrip("@")
         if not handle:
             continue
 
+        retries = []
         try:
             items = _run_actor(
                 apify,
@@ -117,7 +119,9 @@ def main():
                     "resultsLimit": max_posts,        # trava de custo: $0,001 × max_posts
                     "maxRequestsPerCrawl": max_crawl_requests,  # trava de segurança HTTP
                 },
+                retries=retries,
             )
+            total_retries += retries[0] if retries else 0
 
             for item in items:
                 post_dict = {
@@ -145,6 +149,7 @@ def main():
             logger.info("Apify OK: @%s — %d posts", handle, len(items))
 
         except Exception as e:
+            total_retries += retries[0] if retries else 0
             if _is_permission_error(e):
                 logger.error(
                     "Apify: erro de permissão/plano para @%s (%s). "
@@ -155,6 +160,9 @@ def main():
                 logger.warning("Apify falhou para @%s: %s", handle, e)
 
     niche = client_profile.get("niche", "")
+    if not niche:
+        logger.warning("Apify: campo 'niche' ausente ou vazio no profile.yaml")
+        niche = "não especificado"
     data = {
         "pesquisa_apify": {
             "client_id": args.client_id,
@@ -169,7 +177,7 @@ def main():
     except ValueError as e:
         _write_error(args.output, args.client_id, str(e))
         logger.error("Apify: schema inválido: %s. Fonte pulada.", e)
-        print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": 0}))
+        print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": total_retries}))
         sys.exit(0)
 
     output_path = Path(args.output)
@@ -179,7 +187,7 @@ def main():
 
     n = len(resultados)
     logger.info("Apify: %d posts → %s", n, output_path)
-    print("METRICS_JSON: " + json.dumps({"resultados_count": n, "retries": 0}))
+    print("METRICS_JSON: " + json.dumps({"resultados_count": n, "retries": total_retries}))
 
 
 def _write_error(output: str, client_id: str, erro: str) -> None:

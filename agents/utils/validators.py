@@ -73,6 +73,6 @@ def validate_yaml_output(data: dict, schema: type[BaseModel], label: str) -> Non
     """Valida um dict contra schema Pydantic. Levanta ValueError se inválido."""
     try:
         schema.model_validate(data)
-    except Exception as e:
+    except (ValueError, TypeError) as e:
         log.error("[%s] Schema inválido: %s", label, e)
         raise ValueError(f"[{label}] Schema inválido: {e}") from e

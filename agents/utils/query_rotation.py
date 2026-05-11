@@ -103,20 +103,24 @@ def build_query_context(client_profile: dict[str, Any], dt: datetime | None = No
 
     # Extrair até 3 palavras-chave do manual_input.yaml se existir
     manual_keywords = ""
-    try:
-        from agents.utils.paths import client_dir
-        manual_path = client_dir(client_profile.get("client_id", "")) / "manual_input.yaml"
-        if manual_path.exists():
-            import yaml
-            with open(manual_path, encoding="utf-8") as f:
-                manual = yaml.safe_load(f) or {}
-            temas = [r.get("tema", "") for r in manual.get("resultados", []) if r.get("tema")]
-            if temas:
-                # Pegar até 5 palavras dos temas manuais
-                words = " ".join(temas[:2]).split()
-                manual_keywords = " ".join(words[:5])
-    except Exception:
-        pass
+    client_id = client_profile.get("client_id", "")
+    if not client_id:
+        logger.warning("build_query_context: client_id ausente no profile, pulando manual_keywords")
+    else:
+        try:
+            from agents.utils.paths import client_dir
+            manual_path = client_dir(client_id) / "manual_input.yaml"
+            if manual_path.exists():
+                import yaml
+                with open(manual_path, encoding="utf-8") as f:
+                    manual = yaml.safe_load(f) or {}
+                temas = [r.get("tema", "") for r in manual.get("resultados", []) if r.get("tema")]
+                if temas:
+                    # Pegar até 5 palavras dos temas manuais
+                    words = " ".join(temas[:2]).split()
+                    manual_keywords = " ".join(words[:5])
+        except Exception:
+            pass
 
     return {
         "niche": niche,

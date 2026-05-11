@@ -23,10 +23,13 @@ def seasonal_context(dt: datetime | None = None) -> str:
     current = (m, d)
     for (sm, sd), (em, ed), label in windows:
         start, end = (sm, sd), (em, ed)
+        # Janela normal (ex: 25 abr → 14 mai)
         if start <= end:
             if start <= current <= end:
                 return label
         else:
+            # Wrap-around: janela cruza virada de ano (ex: 10 dez → 10 jan).
+            # Ativa se current está depois do start (dez) OU antes do end (jan).
             if current >= start or current <= end:
                 return label
     month_labels = {

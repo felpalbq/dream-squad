@@ -17,16 +17,34 @@ def with_retry(
     """
     Decorator de retry com backoff exponencial.
     Uso: @with_retry(max_attempts=3, base_delay=2.0, label="Gemini API")
+
+    Para contar retries reais, passe uma lista mutável como último
+    argumento posicional da função decorada:
+        retries = []
+        @with_retry(...)
+        def _call(retries):
+            ...
+        result = _call(retries)
+        actual_retries = retries[0] if retries else 0
     """
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             last_exc = None
+            retry_count = 0
             for attempt in range(1, max_attempts + 1):
                 try:
-                    return func(*args, **kwargs)
+                    result = func(*args, **kwargs)
+                    # Se a função recebeu uma lista mutável como último arg posicional
+                    # ou como kwarg 'retries', registra o número de retries realizados.
+                    if args and isinstance(args[-1], list):
+                        args[-1].append(retry_count)
+                    elif kwargs.get("retries") is not None and isinstance(kwargs.get("retries"), list):
+                        kwargs["retries"].append(retry_count)
+                    return result
                 except exceptions as e:
                     last_exc = e
+                    retry_count += 1
                     if attempt == max_attempts:
                         logger.error(
                             "[%s] Falhou após %d tentativas: %s",

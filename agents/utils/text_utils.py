@@ -1,13 +1,13 @@
 """Utilitários de processamento de texto para agentes LLM."""
 
+import re
+
 
 def strip_fences(text: str) -> str:
-    """Remove code fences markdown (```yaml / ```) do início/fim do texto."""
+    """Remove code fences markdown (```yaml / ``` / ~~~yaml / ~~~) do início/fim do texto."""
     text = text.strip()
-    if text.startswith("```yaml"):
-        text = text[7:]
-    elif text.startswith("```"):
-        text = text[3:]
-    if text.endswith("```"):
-        text = text[:-3]
+    text = re.sub(r"^```(?:yaml|json|python)?\s*", "", text)
+    text = re.sub(r"^~~~(?:yaml|json|python)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+    text = re.sub(r"\s*~~~$", "", text)
     return text.strip()

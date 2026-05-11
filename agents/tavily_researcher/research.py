@@ -45,6 +45,7 @@ def _tavily_search(
     country: str | None = None,
     include_domains: list[str] | None = None,
     exclude_domains: list[str] | None = None,
+    retries: list = None,
 ) -> list[dict]:
     kwargs: dict = {"query": query, "max_results": max_results, "search_depth": search_depth}
     if days is not None:
@@ -100,7 +101,9 @@ def main():
     queries = _build_queries(client_profile, max_requests)
 
     raw_results: list[dict] = []
+    total_retries = 0
     for axis, query in queries:
+        retries = []
         try:
             results = _tavily_search(
                 tavily, query,
@@ -111,7 +114,9 @@ def main():
                 country=country,
                 include_domains=include_domains,
                 exclude_domains=exclude_domains,
+                retries=retries,
             )
+            total_retries += retries[0] if retries else 0
             for r in results:
                 raw_results.append({
                     "tema": _strip_html(r.get("title", ""))[:80],
@@ -125,12 +130,13 @@ def main():
                 })
             logger.info("Tavily OK [%s]: '%s' → %d resultados", axis, query, len(results))
         except Exception as e:
+            total_retries += retries[0] if retries else 0
             logger.warning("Tavily falhou para '%s': %s", query, e)
 
     if not raw_results:
         _write_error(args.output, args.client_id, niche, "Todas as buscas Tavily falharam")
         logger.warning("Tavily: zero resultados. Fonte pulada.")
-        print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": 0}))
+        print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": total_retries}))
         sys.exit(0)
 
     data = {
@@ -147,7 +153,7 @@ def main():
     except ValueError as e:
         _write_error(args.output, args.client_id, niche, str(e))
         logger.error("Tavily: schema inválido: %s. Fonte pulada.", e)
-        print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": 0}))
+        print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": total_retries}))
         sys.exit(0)
 
     output_path = Path(args.output)
@@ -157,7 +163,7 @@ def main():
 
     n = len(raw_results)
     logger.info("Tavily: %d resultados → %s", n, output_path)
-    print("METRICS_JSON: " + json.dumps({"resultados_count": n, "retries": 0}))
+    print("METRICS_JSON: " + json.dumps({"resultados_count": n, "retries": total_retries}))
 
 
 def _write_error(output: str, client_id: str, niche: str, erro: str) -> None:

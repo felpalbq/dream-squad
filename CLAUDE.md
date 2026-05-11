@@ -8,7 +8,7 @@ Este arquivo fornece ao Claude Code o contexto completo do projeto Dream Squad.
 
 Sistema multi-agentes rodando dentro do Claude Code CLI. Automatiza a produção de conteúdo estratégico (carrosséis, roteiros de reels/stories/b-rolls) para pequenas empresas de Ilhéus/Itabuna (BA) sem verba para tráfego pago. O operador é o estrategista/gestor; os clientes recebem o conteúdo via board Trello atualizado 2×/semana.
 
-**Stack:** Python · Gemini API (pesquisa nacional) · Tavily (web search geral) · Ollama Python SDK (web search regional, se `OLLAMA_API_KEY` configurada) · Apify (posts públicos de perfis de referência) · Input manual do operador · Trello (publicação) · Claude Code CLI (todos os agentes LLM)
+**Stack:** Python · Gemini API (pesquisa nacional) · Tavily (web search geral) · Ollama API via requests (web search regional, se `OLLAMA_API_KEY` configurada) · Apify (posts públicos de perfis de referência) · Input manual do operador · Trello (publicação) · Claude Code CLI (todos os agentes LLM)
 
 ---
 
@@ -56,7 +56,7 @@ O Claude Code lê `agents/scoring_merge/instructions.md` e consolida todos os YA
 | `OLLAMA_API_KEY` | Se Ollama Regional | API key do servidor Ollama cloud. **Habilita pesquisa regional via Python SDK.** |
 | `OLLAMA_MODEL` | Não | Modelo para pesquisa regional. Default: `kimi-k2.6:cloud` |
 | `OLLAMA_RESEARCHER_MODEL` | Não | Modelo para pesquisa regional. Default: `kimi-k2.6:cloud` |
-| `AGENT_TIMEOUT_S` | Não | Timeout por subprocess em segundos. Default: 120 |
+| `AGENT_TIMEOUT_S` | Não | Timeout por subprocess em segundos. Default: 240 (deve ser ≥ 240 se usando Apify) |
 
 ---
 
@@ -125,8 +125,8 @@ Todos os agentes LLM são sub-agentes nativos do Claude Code (Task tool). As exc
 - Output: `tavily_research.yaml` com campo `pesquisa_tavily`
 
 **Ollama Regional Researcher** (`agents/ollama_researcher/research.py`) — *ativado se `OLLAMA_API_KEY` estiver configurada*
-- Busca notícias de Ilhéus/Itabuna via `ollama.web_search()`
-- Executa 3 queries direcionadas, sintetiza via `client.chat()`
+- Busca notícias de Ilhéus/Itabuna via requests direto à API Ollama (`/api/chat`)
+- Executa 3 queries direcionadas + fetch de sites regionais, sintetiza via LLM
 - Output: `ollama_research.yaml` com campo `pesquisa_ollama_regional`
 
 **Apify Collector** (`agents/apify_collector/collect.py`)
@@ -140,11 +140,13 @@ Todos os agentes LLM são sub-agentes nativos do Claude Code (Task tool). As exc
 - Filtra entradas de template não preenchidas e entradas com `valido_ate` expirado
 - Output: `manual_research.yaml` com campo `manual_research`
 
-**Scoring/Merge** (sub-agente dedicado via Task tool)
+**Scoring/Merge** (sub-agente dedicado via Task tool, ou fallback local)
 - Deduplicação semântica via LLM entre as 5 fontes
 - Enriquecimento cruzado: pauta de uma fonte + evidência de outra = pauta mais forte
 - Bônus de confiança para pautas confirmadas por múltiplas fontes
 - Rankeamento por potencial total, balanceamento Topo/Fundo de funil
+- **Sub-agente Claude Code (preferido):** spawne com `agents/scoring_merge/instructions.md`
+- **Fallback local (sem sub-agente):** `python agents/scoring_merge/run_local.py --client-id <id> --exec-dir <path>` — requer `OLLAMA_API_KEY`
 - Output: `final_research.md`
 
 ---
@@ -174,7 +176,8 @@ dream-squad/
 │                   └── final_research.md
 ├── agents/
 │   ├── orchestrator/
-│   │   └── run.py
+│   │   ├── run.py
+│   │   └── update_cooldown.py
 │   ├── gemini_researcher/
 │   │   └── research.py
 │   ├── tavily_researcher/
@@ -187,14 +190,19 @@ dream-squad/
 │   │   └── load.py
 │   ├── scoring_merge/
 │   │   ├── score.py
-│   │   └── instructions.md
+│   │   ├── instructions.md
+│   │   └── run_local.py
 │   └── utils/
 │       ├── paths.py
 │       ├── logging_config.py
 │       ├── retry.py
-│       └── validators.py
+│       ├── validators.py
+│       ├── text_utils.py
+│       └── engagement.py
 ├── config/
 │   └── server_config.yaml
+├── build/
+│   └── web_search_sites.txt
 └── docs/
     └── content_strategy.md
 ```

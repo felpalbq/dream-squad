@@ -115,13 +115,15 @@ def main():
     model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
     client = genai.Client(api_key=api_key)
 
+    retries = []
+
     @with_retry(max_attempts=3, base_delay=2.0, label="Gemini API")
-    def _call_gemini() -> str:
+    def _call_gemini(retries):
         response = client.models.generate_content(model=model_name, contents=prompt)
         return response.text
 
     try:
-        raw_text = _call_gemini()
+        raw_text = _call_gemini(retries)
         raw = strip_fences(raw_text)
         data = yaml.safe_load(raw)
 
@@ -134,9 +136,10 @@ def main():
         try:
             validate_yaml_output(data["pesquisa_gemini"], PesquisaGemini, "gemini")
         except ValueError as e:
+            actual_retries = retries[0] if retries else 0
             _write_error(args.output, args.client_id, client_profile.get("niche", ""), str(e))
             logger.error("Gemini: schema inválido: %s. Research continua sem esta fonte.", e)
-            print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": 0}))
+            print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": actual_retries}))
             sys.exit(0)
 
         output_path = Path(args.output)
@@ -144,14 +147,16 @@ def main():
         with open(output_path, "w", encoding="utf-8") as f:
             yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
 
+        actual_retries = retries[0] if retries else 0
         n = len(data["pesquisa_gemini"].get("resultados", []))
         logger.info("Gemini: %d resultados → %s", n, output_path)
-        print("METRICS_JSON: " + json.dumps({"resultados_count": n, "retries": 0}))
+        print("METRICS_JSON: " + json.dumps({"resultados_count": n, "retries": actual_retries}))
 
     except Exception as e:
+        actual_retries = retries[0] if retries else 0
         _write_error(args.output, args.client_id, client_profile.get("niche", ""), str(e))
         logger.error("Gemini falhou: %s. Research continua sem esta fonte.", e)
-        print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": 0}))
+        print("METRICS_JSON: " + json.dumps({"resultados_count": 0, "retries": actual_retries}))
 
 
 def _write_error(output: str, client_id: str, niche: str, erro: str) -> None:

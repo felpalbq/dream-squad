@@ -21,13 +21,10 @@ Leia apenas os arquivos que existirem. Se um arquivo não existir ou tiver `resu
 
 ### 1. Deduplicação Semântica via LLM
 
-Você receberá opcionalmente `clusters_preprocessed.yaml`, que contém clusters pré-formados por similaridade Jaccard (threshold 0,5).
-
 **Processo:**
-1. Comece pelos clusters pré-formados. Cada cluster é um grupo de candidatos potencialmente sobrepostos.
-2. Avalie se cada cluster é realmente uma única pauta ou se deve ser quebrado.
-3. Para clusters que você confirma como única pauta: faça o merge e registre todas as fontes confirmadoras.
-4. Para candidatos fora de clusters (singletons): avalie individualmente.
+1. Avalie cada candidato individualmente e em relação aos demais.
+2. Se dois ou mais candidatos forem sobre a mesma pauta (similaridade de intenção editorial), faça o merge e registre TODAS as fontes confirmadoras.
+3. Para candidatos únicos: avalie individualmente.
 
 Critério: similaridade de intenção editorial, não apenas palavras.
 Ao mesclar: registre TODAS as fontes que confirmaram no campo `fontes_confirmadoras`.

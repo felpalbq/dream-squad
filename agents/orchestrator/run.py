@@ -350,23 +350,6 @@ def main():
     )
     session["stages"]["manual_input"] = {**metrics, "output": str(manual_output)}
 
-    # 6. Pré-clustering determinístico (antes do Scoring/Merge)
-    clusters_output = exec_d / "research" / "clusters_preprocessed.yaml"
-    try:
-        subprocess.run(
-            [sys.executable, "agents/scoring_merge/preprocess.py",
-             "--exec-dir", str(exec_d), "--output", str(clusters_output)],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            cwd=str(ROOT),
-            timeout=30,
-            check=True,
-        )
-        logger.info("Pré-clustering OK: %s", clusters_output)
-    except Exception as e:
-        logger.warning("Pré-clustering falhou: %s", e)
-
     # Cooldown: carregar histórico de pautas usadas e copiar para exec_dir
     used_topics = _load_used_topics(args.client_id)
     used_topics = _cleanup_used_topics(used_topics)
@@ -374,10 +357,8 @@ def main():
     with open(used_topics_path, "w", encoding="utf-8") as f:
         json.dump(used_topics, f, ensure_ascii=False, indent=2)
 
-    # Extrair e salvar temas desta execução no histórico global
-    new_topics = _extract_topics_from_research(exec_d, args.client_id)
-    used_topics.extend(new_topics)
-    _save_used_topics(args.client_id, used_topics)
+    # NOTA: temas são extraídos APENAS após o Scoring/Merge (final_research.md).
+    # Ver agents/orchestrator/update_cooldown.py
 
     session["total_elapsed_s"] = round((datetime.now() - t_start).total_seconds(), 1)
 
@@ -398,7 +379,6 @@ def main():
         ("ollama_research.yaml", "Ollama Regional"),
         ("apify_research.yaml", "Apify"),
         ("manual_research.yaml", "Manual Input"),
-        ("clusters_preprocessed.yaml", "Pré-clustering"),
         ("used_topics.json", "Cooldown de Pautas"),
     ]:
         p = exec_d / "research" / fname
