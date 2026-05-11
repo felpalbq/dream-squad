@@ -33,10 +33,9 @@ Flags opcionais:
 
 Antes de iniciar qualquer subprocess, o orquestrador verifica:
 
-1. **`DREAM_SQUAD_ENV` definida** (`anthropic` ou `ollama`). Ausência → `sys.exit(1)` com mensagem explícita.
-2. **`profile.yaml` do cliente existe** em `clients/{client_id}/`. Ausência → `sys.exit(1)`.
-3. **Health check de fontes externas**: para cada fonte, verifica presença da env var de credencial E disponibilidade da biblioteca Python.
-4. **Pelo menos uma fonte disponível**. Zero fontes disponíveis → `sys.exit(1)` com mensagem de configuração.
+1. **`profile.yaml` do cliente existe** em `clients/{client_id}/`. Ausência → `sys.exit(1)`.
+2. **Health check de fontes externas**: para cada fonte, verifica presença da env var de credencial E disponibilidade da biblioteca Python.
+3. **Pelo menos uma fonte disponível**. Zero fontes disponíveis → `sys.exit(1)` com mensagem de configuração.
 
 ### 2.3. Saída do health check
 
@@ -57,11 +56,10 @@ Fontes marcadas `--` são puladas silenciosamente — o pipeline continua.
 
 ### 3.1. Ordem das etapas (determinística)
 
-1. Detectar ambiente
-2. Carregar `profile.yaml`
-3. Health check
-4. Criar diretório de execução `clients/{client_id}/executions/{YYYY-MM-DD_HHMMSS}/`
-5. Carregar `pulse.md` da raiz, se existir, e injetar contexto via env var `DREAM_SQUAD_PULSE`
+1. Carregar `profile.yaml`
+2. Health check
+3. Criar diretório de execução `clients/{client_id}/executions/{YYYY-MM-DD_HHMMSS}/`
+4. Carregar `pulse.md` da raiz, se existir, e injetar contexto via env var `DREAM_SQUAD_PULSE`
 6. Carregar `used_topics.json` do cliente (se existir) — passa adiante para o Scoring/Merge
 7. **Etapa 1:** Gemini Researcher
 8. **Etapa 2:** Tavily Researcher
@@ -100,7 +98,6 @@ Sempre via argumentos CLI:
 - `--output <path>`: caminho exato onde gravar o YAML de output.
 
 Variáveis de ambiente (herdadas):
-- `DREAM_SQUAD_ENV`
 - `DREAM_SQUAD_PULSE` (se houver `pulse.md`)
 - Credenciais específicas de cada fonte.
 
@@ -120,7 +117,7 @@ O orquestrador NÃO chama o Scoring/Merge diretamente. Ele apenas:
 2. Gera `clusters_preprocessed.yaml`.
 3. Imprime no stdout instruções exatas para o Claude Code (top-level) spawnar o sub-agente.
 
-Exemplo de instrução (ambiente `anthropic`):
+Exemplo de instrução:
 ```
 PRÓXIMOS PASSOS (Claude Code):
 
@@ -141,21 +138,10 @@ PRÓXIMOS PASSOS (Claude Code):
 
 ---
 
-## 5. Selector de ambiente interativo
-
-Quando o orquestrador é invocado **pelo Claude Code** (top-level, via linguagem natural), o Claude Code DEVE apresentar o selector ANTES de chamar este script. O orquestrador **não tem que fazer nada para suportar o selector** — apenas confiar que `DREAM_SQUAD_ENV` chegará via env quando o operador escolher.
-
-Quando invocado fora do Claude Code (ex: cron), o operador exporta `DREAM_SQUAD_ENV` antes do comando. Sem essa env, `sys.exit(1)`.
-
-Ver `00_analise_e_correcoes.md` Seção 8 para spec completa do selector.
-
----
-
-## 6. Métricas registradas em `session.yaml`
+## 5. Métricas registradas em `session.yaml`
 
 ```yaml
 client_id: "casadobicho"
-environment: "anthropic"
 timestamp: "2026-05-09T14:05:30"
 exec_dir: "clients/casadobicho/executions/2026-05-09_140530"
 health_check:
@@ -204,7 +190,7 @@ Esse arquivo é fonte canônica para auditoria pós-execução.
 
 ---
 
-## 7. O que o Orquestrador NUNCA faz
+## 6. O que o Orquestrador NUNCA faz
 
 - ❌ Não interpreta conteúdo dos YAMLs de fontes.
 - ❌ Não decide qualidade de pautas.
@@ -217,20 +203,7 @@ Esse arquivo é fonte canônica para auditoria pós-execução.
 
 ---
 
-## 8. Ambiente e modelo subjacente
-
-O `DREAM_SQUAD_ENV` indica qual **provedor/modelo o Claude Code está usando nativamente** na sessão atual — não muda o mecanismo de invocação do sistema.
-
-- **Ambiente `anthropic`:** Claude Code logado com conta Anthropic → modelo subjacente: Claude Sonnet/Haiku/Opus.
-- **Ambiente `ollama`:** Claude Code logado com conta Ollama → modelo subjacente: Kimi K2.6, GLM, Gemma, Qwen, etc.
-
-Em **ambos os casos**, após o orquestrador o Claude Code top-level spawna o sub-agente Scoring/Merge via **Task tool nativa**. A diferença é apenas o modelo que o Claude Code usa por baixo — isso é transparente para o operador e não requer código ou configuração adicional.
-
-> **Nunca:** o orquestrador ou o Claude Code chamam `ollama.Client.chat()` para o Scoring/Merge. Essa API é usada **exclusivamente** pelo Ollama Regional Researcher (`agents/ollama_researcher/research.py`) para pesquisa web.
-
----
-
-## 9. Política de logs
+## 7. Política de logs
 
 - Stdout: progresso humano-legível (cabeçalhos, status por etapa, resumo final).
 - Stderr: logs estruturados via `logging` (formato `YYYY-MM-DD HH:MM:SS [LEVEL] name — message`).
@@ -239,7 +212,7 @@ Em **ambos os casos**, após o orquestrador o Claude Code top-level spawna o sub
 
 ---
 
-## 10. Critério de sucesso de uma execução
+## 8. Critério de sucesso de uma execução
 
 Uma execução é considerada **sucesso** quando:
 1. `session.yaml` foi gravado.

@@ -16,7 +16,7 @@ O Ollama Regional Researcher é a **fonte local profunda** do sistema. Diferente
 - Sintetiza os resultados via LLM antes de gravar — produz YAML estruturado, não resultados crus.
 - Aplica raciocínio de conexão indireta entre tema regional e nicho do cliente.
 
-É a única fonte **disponível em qualquer ambiente** (não precisa de `DREAM_SQUAD_ENV=ollama`). Basta `OLLAMA_API_KEY` estar setada.
+Ativado quando `OLLAMA_API_KEY` está configurada.
 
 ---
 
@@ -35,7 +35,7 @@ python agents/ollama_researcher/research.py --client-id <id> --output <path>
 | `OLLAMA_API_KEY` | Sim | Sem ela, fonte é pulada silenciosamente. |
 | `OLLAMA_API_BASE` | Não | Default: `https://ollama.com`. |
 | `OLLAMA_RESEARCHER_MODEL` | Não | Default: `kimi-k2.6:cloud`. |
-| `DREAM_SQUAD_PULSE` | Não | Conteúdo de `pulse.md`, injetado no prompt de síntese. |
+| `DREAM_SQUAD_PULSE` | Não | Conteúdo de `pulse.md`, injetado no prompt de síntese se disponível. |
 
 ### 2.3. Pré-condições
 
@@ -230,19 +230,7 @@ Logs (stderr):
 
 ---
 
-## 10. Diferenças entre ambientes
-
-Esse agente roda **igual** em ambiente `anthropic` ou `ollama`. Ele sempre usa o Python SDK Ollama (`ollama.web_search` + `ollama.web_fetch` + `client.chat()`) para a síntese regional — isso é independente do `DREAM_SQUAD_ENV`.
-
-O que muda entre ambientes é apenas o **modelo subjacente do Claude Code** que roda o Scoring/Merge depois:
-- Ambiente `anthropic`: Claude Code usa Sonnet → Scoring/Merge via Task tool nativa com Sonnet.
-- Ambiente `ollama`: Claude Code usa Kimi/etc → Scoring/Merge via **Task tool nativa** com Kimi/etc.
-
-> **Em ambos os casos o Scoring/Merge é invocado via Task tool nativa do Claude Code.** Nunca via `ollama.Client.chat()` externo.
-
----
-
-## 11. Evolução futura
+## 10. Evolução futura
 
 - Detectar quando portal regional está em manutenção (resposta vazia repetida) e pular automaticamente.
 - Adicionar `web_search` por hashtag local quando aplicável.

@@ -31,13 +31,10 @@ O Scoring/Merge é o **agente mais crítico do pipeline**. Ele recebe ~30-50 can
 
 **Não é um subprocess Python.** É um sub-agente LLM, invocado pelo Claude Code top-level após o orquestrador concluir.
 
-#### Invocação (ambos os ambientes)
 Spawn via **Task tool nativa do Claude Code** com:
 - Instructions: `agents/scoring_merge/instructions.md`
 - Inputs anexados (paths dos YAMLs)
 - Output target: `<exec_dir>/research/final_research.md`
-
-> O `DREAM_SQUAD_ENV` indica apenas qual **modelo subjacente** o Claude Code está usando (Sonnet no ambiente Anthropic, Kimi/GLM/Gemma/etc no ambiente Ollama). O mecanismo de invocação é idêntico: Task tool nativa. Nunca se chama `ollama.Client.chat()` para o Scoring/Merge.
 
 ### 2.2. Inputs
 
@@ -355,25 +352,7 @@ Quando isso ocorre: revisar `instructions.md` E o pré-clustering, não o LLM.
 
 ---
 
-## 10. Diferenças entre ambientes
-
-| Aspecto | Anthropic (Sonnet) | Ollama (Kimi/GLM/Gemma/Qwen) |
-|---|---|---|
-| Invocação | Task tool nativa | **Task tool nativa** (mesmo mecanismo) |
-| Modelo subjacente | Claude Sonnet | Kimi K2.6 (ou outro da conta Ollama) |
-| System prompt | `instructions.md` como instruções do sub-agente | `instructions.md` como instruções do sub-agente |
-| Temperature | Default do Claude Code | Default do Claude Code (modelo Ollama) |
-| Tamanho de contexto | ~200K tokens | Depende do modelo/plano Ollama |
-| Custo aproximado | $0,02-0,05 por execução | $0,01-0,03 por execução |
-| Estabilidade do YAML/MD | Alta | Boa, mas validar saída |
-
-> **Ponto crítico:** a interface de invocação é **idêntica** nos dois ambientes — sempre Task tool nativa do Claude Code. O `DREAM_SQUAD_ENV` não muda como o Scoring/Merge é invocado; só indica qual modelo o Claude Code está usando por baixo. Nunca se usa `ollama.Client.chat()` para o Scoring/Merge.
-
-A lógica do agente (este documento) é idêntica nos dois ambientes. O `instructions.md` é o mesmo.
-
----
-
-## 11. Evolução futura
+## 10. Evolução futura
 
 - Embeddings semânticos para deduplicação (substituiria Jaccard) — ganho de precisão de 5-15%.
 - Feedback loop com operador (marcar pautas usadas como "boas/ruins" para calibrar scoring futuro).

@@ -1,10 +1,5 @@
-# Configuração de ambiente e timeouts
+# Configuração de timeouts e limites de API
 # Os valores de env sobrescrevem este arquivo.
-
-environment:
-  # anthropic | ollama
-  # Sobrescrito por DREAM_SQUAD_ENV (obrigatória — ausência = erro)
-  default: anthropic
 
 timeouts:
   gemini_api: 60

@@ -117,20 +117,6 @@ def _extract_topics_from_research(exec_dir: Path, client_id: str) -> list[dict]:
     return topics
 
 
-def detect_environment() -> str:
-    env = os.environ.get("DREAM_SQUAD_ENV", "").strip().lower()
-    if env in ("anthropic", "ollama"):
-        return env
-    print(
-        "[ERRO] DREAM_SQUAD_ENV não definida.\n"
-        "Quando invocado pelo Claude Code, ele deve apresentar o selector "
-        "de ambiente antes de chamar este script.\n"
-        "Quando invocado direto (ex: cron), exporte DREAM_SQUAD_ENV=anthropic|ollama.",
-        file=sys.stderr,
-    )
-    sys.exit(1)
-
-
 def _load_pulse() -> str:
     """Lê pulse.md da raiz do projeto, se existir."""
     pulse_path = ROOT / "pulse.md"
@@ -139,7 +125,7 @@ def _load_pulse() -> str:
     return ""
 
 
-def health_check(env: str) -> dict:
+def health_check() -> dict:
     """Verifica disponibilidade de cada fonte antes de iniciar."""
     status: dict[str, bool] = {}
 
@@ -281,15 +267,12 @@ def main():
     print(f"  Data:    {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"{'='*60}")
 
-    env = detect_environment()
-    print(f"\n[config] Ambiente: {env}")
-
     pulse = _load_pulse()
     if pulse:
         os.environ["DREAM_SQUAD_PULSE"] = pulse
         print(f"\n[pulse] Contexto manual carregado ({len(pulse)} chars)")
 
-    health_status = health_check(env)
+    health_status = health_check()
 
     if args.exec_dir:
         exec_d = Path(args.exec_dir)
@@ -300,7 +283,6 @@ def main():
 
     session: dict = {
         "client_id": args.client_id,
-        "environment": env,
         "timestamp": datetime.now().isoformat(),
         "exec_dir": str(exec_d),
         "health_check": health_status,
@@ -425,15 +407,11 @@ def main():
 
     inputs_str = "\n".join(inputs_disponiveis) if inputs_disponiveis else "     (nenhum input disponível)"
 
-    # Instruções para o Claude Code continuar
-    # Nota: em qualquer ambiente (anthropic ou ollama), o Scoring/Merge é invocado
-    # via Task tool nativa do Claude Code. O DREAM_SQUAD_ENV indica apenas o modelo
-    # subjacente (Sonnet vs Kimi/etc), não o mecanismo de invocação.
+    # Instruções para o Claude Code continuar com o sub-agente Scoring/Merge
     scoring_instrucao = f"""   Spawne um sub-agente com:
    - Instruções: agents/scoring_merge/instructions.md
    - Cliente: {args.client_id} | Nicho: {client.get('niche', '')}
    - Público: {client.get('audience', {}).get('description', '')}
-   - Ambiente: {env} (Task tool nativa do Claude Code)
    - Inputs disponíveis:
 {inputs_str}
      clients/{args.client_id}/profile.yaml

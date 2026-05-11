@@ -8,7 +8,7 @@ Este arquivo fornece ao Claude Code o contexto completo do projeto Dream Squad.
 
 Sistema multi-agentes rodando dentro do Claude Code CLI. Automatiza a produção de conteúdo estratégico (carrosséis, roteiros de reels/stories/b-rolls) para pequenas empresas de Ilhéus/Itabuna (BA) sem verba para tráfego pago. O operador é o estrategista/gestor; os clientes recebem o conteúdo via board Trello atualizado 2×/semana.
 
-**Stack:** Python · Gemini API (pesquisa nacional) · Tavily (web search geral) · Ollama Python SDK (web search regional — disponível em qualquer ambiente se `OLLAMA_API_KEY` configurada) · Apify (posts públicos de perfis de referência) · Input manual do operador · Trello (publicação) · Claude Code CLI (todos os agentes LLM)
+**Stack:** Python · Gemini API (pesquisa nacional) · Tavily (web search geral) · Ollama Python SDK (web search regional, se `OLLAMA_API_KEY` configurada) · Apify (posts públicos de perfis de referência) · Input manual do operador · Trello (publicação) · Claude Code CLI (todos os agentes LLM)
 
 ---
 
@@ -40,12 +40,7 @@ Flags opcionais: `--skip-gemini` · `--skip-tavily` · `--skip-ollama-research` 
 
 ### Passo 2 — Scoring e Merge
 
-O Claude Code lê `agents/scoring_merge/instructions.md` e consolida todos os YAMLs disponíveis em `final_research.md`.
-
-**Em qualquer ambiente:** o Scoring/Merge é um sub-agente nativo do Claude Code, invocado via **Task tool**. O `DREAM_SQUAD_ENV` indica apenas qual modelo o Claude Code está usando nativamente — não altera o mecanismo de invocação.
-
-- **Ambiente Anthropic:** Claude Code logado com conta Anthropic → Task tool usa Claude Sonnet por baixo.
-- **Ambiente Ollama:** Claude Code logado com conta Ollama → Task tool usa Kimi K2.6 (ou outro modelo Ollama configurado na conta) por baixo.
+O Claude Code lê `agents/scoring_merge/instructions.md` e consolida todos os YAMLs disponíveis em `final_research.md`. O Scoring/Merge é um sub-agente nativo do Claude Code, invocado via **Task tool**.
 
 ---
 
@@ -53,47 +48,15 @@ O Claude Code lê `agents/scoring_merge/instructions.md` e consolida todos os YA
 
 | Variável | Obrigatória | Descrição |
 |---|---|---|
-| `DREAM_SQUAD_ENV` | **Sim** | `anthropic` ou `ollama`. Ausência = erro explícito (sem input manual). |
 | `GEMINI_API_KEY` | Sim | Google Gemini API — deep research nacional |
 | `GEMINI_MODEL` | Não | Modelo Gemini. Default: `gemini-2.0-flash` |
 | `TAVILY_API_KEY` | Recomendado | Tavily web search. Ausência = fonte pulada silenciosamente |
 | `APIFY_API_TOKEN` | Recomendado | Coleta de posts públicos via Apify. Ausência = fonte pulada |
 | `OLLAMA_API_BASE` | Se Ollama Regional | URL base do servidor Ollama (ex: `https://ollama.com`) |
-| `OLLAMA_API_KEY` | Se Ollama Regional | API key do servidor Ollama cloud. **Habilita pesquisa regional via Python SDK.** Não afeta Scoring/Merge. |
+| `OLLAMA_API_KEY` | Se Ollama Regional | API key do servidor Ollama cloud. **Habilita pesquisa regional via Python SDK.** |
 | `OLLAMA_MODEL` | Não | Modelo para pesquisa regional. Default: `kimi-k2.6:cloud` |
 | `OLLAMA_RESEARCHER_MODEL` | Não | Modelo para pesquisa regional. Default: `kimi-k2.6:cloud` |
 | `AGENT_TIMEOUT_S` | Não | Timeout por subprocess em segundos. Default: 120 |
-
-> **Nota sobre `OLLAMA_API_KEY`:** habilita apenas o **Ollama Regional Researcher** (`agents/ollama_researcher/research.py`), que usa `ollama.web_search()` e `ollama.web_fetch()` via Python SDK. O Scoring/Merge nunca chama `ollama.Client.chat()` — em qualquer ambiente, o Scoring/Merge é um sub-agente nativo do Claude Code (Task tool).
-
----
-
-## Selector de Ambiente Interativo
-
-Quando o operador invocar qualquer fluxo de research (em linguagem natural), o Claude Code DEVE perguntar o ambiente antes de executar `agents/orchestrator/run.py`.
-
-> **Importante:** o selector escolhe qual **provedor/modelo o Claude Code está usando nativamente** — não muda o mecanismo de invocação. Em ambos os casos, o Scoring/Merge é invocado via Task tool nativa do Claude Code. A diferença é apenas o modelo subjacente (Sonnet da Anthropic vs Kimi/GLM/Gemma/Qwen via Ollama).
-
-### Comportamento
-
-1. Antes de executar o orquestrador, apresente uma pergunta interativa ao operador:
-   - `anthropic (Sonnet)` — Claude Code logado com conta Anthropic
-   - `ollama (Kimi K2.6)` — Claude Code logado com conta Ollama
-   - `usar último` — apenas se `.dream_squad_session` existir
-2. Mapeie a resposta para `DREAM_SQUAD_ENV` e injete **apenas para esta execução**, sem alterar `.env`:
-   ```bash
-   DREAM_SQUAD_ENV=anthropic python agents/orchestrator/run.py --client-id casadobicho
-   ```
-3. Após sucesso, persista a escolha em `.dream_squad_session` (apenas a string).
-4. Se a env já estiver definida no contexto (ex: cron), pule o selector — `detect_environment()` a usará diretamente.
-
-### Fallback para execução automatizada
-
-Para CI/cron futuro, exporte a env antes de invocar:
-```bash
-export DREAM_SQUAD_ENV=ollama
-python agents/orchestrator/run.py --client-id casadobicho
-```
 
 ---
 
@@ -119,13 +82,13 @@ Todos os agentes LLM são sub-agentes nativos do Claude Code (Task tool). As exc
 ```
 [Solicitação do operador]
         ↓
-[Orquestrador] — identifica cliente, ambiente, roda health check
+[Orquestrador] — identifica cliente, roda health check
         ↓
 [Gemini Researcher] — tendências nacionais (API Python)
         ↓
 [Tavily Researcher] — web search geral (API Python)
         ↓
-[Ollama Regional Researcher] — notícias locais via web_search (qualquer ambiente, requer OLLAMA_API_KEY)
+[Ollama Regional Researcher] — notícias locais via web_search (requer OLLAMA_API_KEY)
         ↓
 [Apify Collector] — posts públicos de perfis de referência (API Python)
         ↓
@@ -145,7 +108,6 @@ Todos os agentes LLM são sub-agentes nativos do Claude Code (Task tool). As exc
 
 **Orquestrador**
 - Carrega `profile.yaml` do cliente
-- Detecta ambiente via `DREAM_SQUAD_ENV` (obrigatória — ausência = `sys.exit(1)`)
 - Roda health check antes de qualquer subprocess
 - Aciona sub-agentes na ordem correta com timeout explícito (`AGENT_TIMEOUT_S`)
 - Registra `session.yaml` com métricas por etapa (status, elapsed_s, retries, timeout, resultados_count)
@@ -162,7 +124,7 @@ Todos os agentes LLM são sub-agentes nativos do Claude Code (Task tool). As exc
 - Strip de HTML nos resultados antes de gravar
 - Output: `tavily_research.yaml` com campo `pesquisa_tavily`
 
-**Ollama Regional Researcher** (`agents/ollama_researcher/research.py`) — *qualquer ambiente, ativado se `OLLAMA_API_KEY` estiver configurada*
+**Ollama Regional Researcher** (`agents/ollama_researcher/research.py`) — *ativado se `OLLAMA_API_KEY` estiver configurada*
 - Busca notícias de Ilhéus/Itabuna via `ollama.web_search()`
 - Executa 3 queries direcionadas, sintetiza via `client.chat()`
 - Output: `ollama_research.yaml` com campo `pesquisa_ollama_regional`
@@ -206,7 +168,7 @@ dream-squad/
 │               └── research/
 │                   ├── gemini_research.yaml
 │                   ├── tavily_research.yaml
-│                   ├── ollama_research.yaml      # apenas ambiente Ollama
+│                   ├── ollama_research.yaml      # apenas se OLLAMA_API_KEY configurada
 │                   ├── apify_research.yaml
 │                   ├── manual_research.yaml
 │                   └── final_research.md
@@ -370,6 +332,5 @@ Campos editoriais adicionais no `final_research.md`: `transformacao` · `friccao
 | Apify erro de permissão/plano | Registrar como falha de configuração, sem retry |
 | Manual input ausente ou vazio | Registrar, continuar sem esta fonte |
 | Timeout de subprocess | Registrar `"timeout": true` em session.yaml, continuar |
-| DREAM_SQUAD_ENV ausente | `sys.exit(1)` com mensagem de erro explícita |
 
 **Nunca:** travar a execução por falha de uma fonte.
